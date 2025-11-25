@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Popup JSON Quick Preview</title>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --muted: #94a3b8;
+      --accent: #2563eb;
+    }
+
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system;
+      margin: 0;
+      background: #0b1220;
+      color: #e6eef8;
+      display: flex;
+      gap: 20px;
+      padding: 30px;
+    }
+
+    .panel {
+      width: 560px;
+      background: #071028;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, .6);
+    }
+
+    textarea {
+      width: 100%;
+      height: 320px;
+      background: #071a33;
+      color: #e6eef8;
+      border: 1px solid #0b2a4b;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+
+    .btn {
+      background: var(--accent);
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: white;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn.secondary {
+      background: #0b2540;
+    }
+
+    .controls {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .error {
+      background: #3a1212;
+      color: #ffb4b4;
+      padding: 8px;
+      border-radius: 6px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* Popup preview overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.65);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .popup-frame {
+      position: relative;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(2, 6, 23, 0.7);
+    }
+
+    .close-x {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      background: #111827;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="panel">
+    <h2>Popup JSON (paste here)</h2>
+    <textarea id="jsonInput"></textarea>
+
+    <div class="controls">
+      <button id="renderBtn" class="btn">Render Preview</button>
+      <button id="downloadBtn" class="btn secondary">Download</button>
+    </div>
+
+    <div id="error" class="error"></div>
+  </div>
+
+  <script>
+    const errorBox = document.getElementById("error");
+
+    function showError(msg) {
+      errorBox.style.display = "block";
+      errorBox.textContent = msg;
+    }
+
+    function hideError() {
+      errorBox.style.display = "none";
+    }
+
+    // flattens popup + followups all into one list
+    function flattenPopups(list) {
+      const all = [];
+
+      function traverse(p) {
+        all.push(p);
+        (p.followUps || []).forEach(traverse);
+      }
+
+      list.forEach(traverse);
+      return all;
+    }
+
+    function renderPopupModal(rawPopups) {
+      const popups = flattenPopups(rawPopups);
+
+      let activePopupId = popups[0]?.id;
+      if (!activePopupId) return showError("No popups found");
+
+      const findPopup = (id) => popups.find(p => p.id === id);
+
+      function openPopup(id) {
+        const popup = findPopup(id);
+        console.log("popup value ", popup)
+        // if (!popup) return alert("Popup not found: " + id) ;
+               if (!popup) return null ;
+
+        const overlay = document.createElement("div");
+        overlay.className = "overlay";
+
+        const frame = document.createElement("div");
+        frame.className = "popup-frame";
+        frame.style.width = popup.width + "px";
+        frame.style.height = popup.height + "px";
+        frame.style.background = popup.backgroundColor || "#fff";
+
+        overlay.appendChild(frame);
+
+        // const close = document.createElement("button");
+        // close.className = "close-x";
+        // close.textContent = "✖ Close";
+        // close.onclick = () => overlay.remove();
+        // frame.appendChild(close);
+
+        // Render components
+        popup.components?.forEach((comp) => {
+          const wrapper = document.createElement("div");
+          wrapper.style.position = "absolute";
+          wrapper.style.left = comp.position.x + "px";
+          wrapper.style.top = comp.position.y + "px";
+
+          if (comp.styles) {
+            for (const key in comp.styles) {
+              wrapper.style[key] = comp.styles[key];
+            }
+          }
+
+          if (comp.type === "text") {
+            const p = document.createElement("p");
+            p.textContent = comp.content || "";
+            wrapper.appendChild(p);
+
+          } else if (comp.type === "input") {
+            const i = document.createElement("input");
+            i.placeholder = "Input";
+            wrapper.appendChild(i);
+
+          } else if (comp.type === "button") {
+            const b = document.createElement("button");
+            b.textContent = comp.label || "Button";
+            b.style.border = "none";
+            b.style.cursor = "pointer";
+
+            b.onclick = (ev) => {
+              ev.stopPropagation();
+              if (comp.action?.type === "openPopup") {
+                const target = comp.action.targetPopupId;
+                overlay.remove();
+                openPopup(target);
+              } else {
+                overlay.remove();
+              }
+            };
+
+            wrapper.appendChild(b);
+          }
+
+          frame.appendChild(wrapper);
+        });
+
+        document.body.appendChild(overlay);
+      }
+
+      openPopup(activePopupId);
+    }
+
+    /* EVENTS */
+    document.getElementById("renderBtn").onclick = () => {
+      hideError();
+
+      try {
+        const data = JSON.parse(document.getElementById("jsonInput").value);
+        renderPopupModal(data);
+      } catch (e) {
+        showError("Invalid JSON: " + e.message);
+      }
+    };
+
+    document.getElementById("downloadBtn").onclick = () => {
+      const text = document.getElementById("jsonInput").value;
+      const blob = new Blob([text], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "popup.json";
+      a.click();
+    };
+  </script>
+
+</body>
+
+</html>

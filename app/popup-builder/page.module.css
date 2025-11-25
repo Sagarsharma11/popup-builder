@@ -1,0 +1,62 @@
+/* page.module.css */
+
+/* scroll container: no internal padding so scrollLeft 0 shows true left edge */
+.editor {
+  flex: 1;
+  height: 100vh;
+  display: flex;
+  justify-content: center; /* centers canvasWrap when it fits */
+  align-items: center;
+  padding: 0;               /* IMPORTANT: remove padding from scroll container */
+  overflow: auto;           /* editor is the scroll container */
+  box-sizing: border-box;
+  background: #f8f9fb;
+  
+}
+
+/* inner wrapper: adds padding so the canvas isn't glued to the edge */
+.canvasOuter {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 1rem;            /* visible gutter around the canvas area */
+}
+
+
+
+.canvasWrapVertical {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  height: max-content;    
+  max-height: 47rem;      
+  box-sizing: border-box;
+  justify-content: flex-start;
+  padding-left: 0;       /* ensure no unexpected left offset */
+  padding-right: 2rem;
+  align-items: center;
+  padding-left: 2rem;
+  /* border: 1px solid green; */
+}
+
+/* canvasWrap sizes to its content but won't exceed max width */
+.canvasWrap {
+  display: flex;
+  gap: 2rem;
+  width: max-content;    
+  max-width: 73rem;      
+  box-sizing: border-box;
+  justify-content: flex-start;
+  padding-left: 0;       /* ensure no unexpected left offset */
+  padding-right: 2rem;
+  align-items: center;
+  padding-left: 2rem;
+  /* border: 1px solid red; */
+}
+
+/* each popup gets a small left margin to avoid being flush with the wrapper edge */
+.popupCanvas {
+  margin-left: 8px;
+  margin-right: 8px;
+}
