@@ -1,13 +1,9 @@
 /* ---------- helper renderer ---------- */
-
 export function RenderComponent(comp: any) {
+  console.log("comp type ", comp);
   switch (comp.type) {
     case "heading":
-      return (
-        <h2 style={{ margin: 0, fontWeight: 600 }}>
-          {comp.content }
-        </h2>
-      );
+      return <h2 style={{ margin: 0, fontWeight: 600 }}>{comp.content}</h2>;
 
     case "text":
       return <p style={{ margin: 0 }}>{comp.content}</p>;
@@ -32,7 +28,7 @@ export function RenderComponent(comp: any) {
           href={comp.href || "#"}
           style={{ color: "#2563eb", textDecoration: "underline" }}
         >
-          {comp.label.label || "Link"}
+          {comp.content || "Link"}
         </a>
       );
 
@@ -47,7 +43,7 @@ export function RenderComponent(comp: any) {
             color: "#2563eb",
           }}
         >
-          {comp.label.label || "Link Box"}
+          {comp.content || "Link Box"}
         </div>
       );
 
@@ -99,34 +95,54 @@ export function RenderComponent(comp: any) {
 
     case "map":
       return (
-        <div
+        <iframe
+          width={comp.styles?.width || 200}
+          height={comp.styles?.height || 150}
           style={{
-            width: comp.styles?.width || 180,
-            height: comp.styles?.height || 150,
-            background: "#e2e8f0",
-            borderRadius: "6px",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            fontSize: "12px",
-            color: "#555",
+            border: 0,
+            borderRadius: comp.styles?.borderRadius || "6px",
           }}
-        >
-          Map Placeholder
-        </div>
+          loading="lazy"
+          allowFullScreen
+          referrerPolicy="no-referrer-when-downgrade"
+          src={
+            comp.src
+              ? comp.src
+              : "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d241317.1160991241!2d72.74109816795278!3d19.082197839797!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3be7b63df29a5aff%3A0xdeb62a36e4b232e0!2sMumbai%2C%20Maharashtra!5e0!3m2!1sen!2sin!4v1700000000000"
+          }
+        ></iframe>
       );
 
-    case "icon":
-      return (
-        <div
-          style={{
-            fontSize: "24px",
-            color: comp.styles?.color || "#000",
-          }}
-        >
-          ⭐
-        </div>
-      );
+    // case "icon": {
+    //   const iconName = comp.content || "star";
+
+    //   const icons: Record<string, string> = {
+    //     star: "⭐",
+    //     heart: "❤️",
+    //     check: "✔️",
+    //     cross: "❌",
+    //     smile: "😊",
+    //     fire: "🔥",
+    //     warning: "⚠️",
+    //     tick: "🟢",
+    //     sun: "☀️",
+    //     moon: "🌙",
+    //   };
+
+    //   return (
+    //     <div
+    //       style={{
+    //         fontSize: comp.styles?.fontSize || "24px",
+    //         color: comp.styles?.color || "#000",
+    //         display: "inline-flex",
+    //         alignItems: "center",
+    //         justifyContent: "center",
+    //       }}
+    //     >
+    //       {icons[iconName] || "⭐"}
+    //     </div>
+    //   );
+    // }
 
     case "button":
       return (

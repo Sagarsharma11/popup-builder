@@ -13,7 +13,7 @@ const SideBar = ({
 }: // eslint-disable-next-line @typescript-eslint/no-explicit-any
 any) => {
   return (
-    <aside className="w-80 bg-white p-4 rounded-xl shadow border border-gray-200">
+    <aside className="w-80 bg-white p-4 rounded-xl shadow border border-gray-200 text-black">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold text-gray-900">Steps</h2>
         <span className="text-xs text-gray-500">{popups.length} Step</span>

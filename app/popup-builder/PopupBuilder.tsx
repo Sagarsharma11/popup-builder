@@ -10,53 +10,10 @@ import ShowPopupJSON from "./ShowPopupJSON";
 import RightSideBar from "./RightSideBar";
 import { RenderComponent } from "./RenderComponent";
 import { createNewComponent } from "./new_componets";
-
-/**
- * NOTE:
- * - Expanded component types to include all variants used in RenderComponent.
- * - getDefaultStyles returns defaults for each type.
- * - ensureStylesInPopups now treats an empty object `{}` as "missing" and fills defaults.
- */
-
-type CompType =
-  | "heading"
-  | "text"
-  | "textarea"
-  | "link"
-  | "linkBox"
-  | "image"
-  | "imageBox"
-  | "video"
-  | "map"
-  | "icon"
-  | "button"
-  | "input";
-
-interface ComponentData {
-  id: string;
-  type: CompType;
-  label?: string;
-  content?: string;
-  placeholder?: string;
-  href?: string;
-  position: { x: number; y: number };
-  styles?: Record<string, string | number>;
-  src?: string;
-  action?:
-    | { type: "openPopup"; targetPopupId: string }
-    | { type: "closePopup" };
-}
-
-interface PopupData {
-  id: string;
-  name: string;
-  width: number;
-  height: number;
-  backgroundColor: string;
-  backgroundImage?: string;
-  components: ComponentData[];
-  followUps: PopupData[]; // single-level nested follow-ups
-}
+import { ComponentData, CompType, PopupData } from "./types";
+import { getDefaultStyles } from "./defaultStyleTypes";
+import { MdDelete } from "react-icons/md";
+import { POPUP_PRESETS } from "./popupPresets";
 
 export default function PopupBuilder() {
   const [popups, setPopups] = useState<PopupData[]>([
@@ -72,9 +29,20 @@ export default function PopupBuilder() {
     },
   ]);
 
+  // store last deleted for undo
+  const [lastDeleted, setLastDeleted] = useState<{
+    component: ComponentData;
+    parentPopupId: string;
+  } | null>(null);
+
   const [draggedType, setDraggedType] = useState<CompType | null>(null);
   const [activePopupId, setActivePopupId] = useState<string>(popups[0].id);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(
+    null
+  );
+
+  // track hover for showing delete icon on hover
+  const [hoveredComponentId, setHoveredComponentId] = useState<string | null>(
     null
   );
 
@@ -91,114 +59,6 @@ export default function PopupBuilder() {
   const MIN_SCALE = 0.4;
   const MAX_SCALE = 2.5;
   const SCALE_STEP = 0.1;
-
-  const outerScrollRef = useRef<HTMLDivElement | null>(null);
-
-  // ---------- default styles for all known types ----------
-  const getDefaultStyles = (
-    type: CompType
-  ): Record<string, string | number> => {
-    switch (type) {
-      case "heading":
-        return { fontSize: "20px", fontWeight: 600, color: "#0f172a" };
-      case "text":
-        return { color: "#1e293b", fontSize: "16px" };
-      case "textarea":
-        return {
-          width: 150,
-          height: 80,
-          border: "1px solid #ccc",
-          borderRadius: "4px",
-        };
-      case "link":
-        return {
-          color: "#2563eb",
-          textDecoration: "underline",
-          fontSize: "14px",
-        };
-      case "linkBox":
-        return {
-          padding: "8px 12px",
-          border: "1px solid #2563eb",
-          borderRadius: "6px",
-          display: "inline-block",
-          color: "#2563eb",
-        };
-      case "image":
-        return {
-          width: 120,
-          height: 120,
-          objectFit: "cover",
-          borderRadius: "6px",
-        };
-      case "imageBox":
-        return {
-          width: 150,
-          height: 100,
-          border: "1px dashed #aaa",
-          borderRadius: "6px",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        };
-      case "video":
-        return { width: 180, height: 120, borderRadius: "6px" };
-      case "map":
-        return {
-          width: 180,
-          height: 150,
-          background: "#e2e8f0",
-          borderRadius: "6px",
-        };
-      case "icon":
-        return { fontSize: "24px", color: "#111827" };
-      case "button":
-        return {
-          backgroundColor: "#2563eb",
-          color: "#fff",
-          padding: "8px 16px",
-          borderRadius: "6px",
-          cursor: "pointer",
-        };
-      case "input":
-        return {
-          border: "1px solid #ccc",
-          padding: "6px 8px",
-          borderRadius: "4px",
-        };
-      default:
-        return {};
-    }
-  };
-
-  // ---------- Normalize existing popups (fill defaults when styles missing or empty) ----------
-  const ensureStylesInPopups = (popupsArr: PopupData[]): PopupData[] =>
-    popupsArr.map((p) => ({
-      ...p,
-      components: p.components.map((c) => {
-        const hasStyles = c.styles && Object.keys(c.styles).length > 0;
-        return {
-          ...c,
-          styles: hasStyles ? { ...c.styles } : getDefaultStyles(c.type),
-        };
-      }),
-      followUps: p.followUps.map((fu) => ({
-        ...fu,
-        components: fu.components.map((c) => {
-          const hasStyles = c.styles && Object.keys(c.styles).length > 0;
-          return {
-            ...c,
-            styles: hasStyles ? { ...c.styles } : getDefaultStyles(c.type),
-          };
-        }),
-      })),
-    }));
-
-  useEffect(() => {
-    // run once on mount to normalize any existing components without styles or with empty {}
-    setPopups((prev) => ensureStylesInPopups(prev));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // apply new scale and attempt to keep center visible
   const applyScale = (newScale: number) => {
@@ -250,6 +110,115 @@ export default function PopupBuilder() {
       applyScale(next);
     }
   };
+
+  const outerScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // only act on Delete or Backspace
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+
+      // don't delete when user is typing into an input/textarea/contentEditable
+      const active = document.activeElement;
+      if (
+        active &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          (active as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      if (selectedComponentId) {
+        e.preventDefault();
+        deleteComponent(selectedComponentId);
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedComponentId]); // re-register when selection changes
+
+  const deleteComponent = (compId: string) => {
+    setPopups((prev) => {
+      let deleted: ComponentData | null = null;
+
+      const next = prev.map((p) => {
+        // top-level components
+        if (p.components.some((c) => c.id === compId)) {
+          const components = p.components.filter((c) => {
+            if (c.id === compId) {
+              deleted = c;
+              return false;
+            }
+            return true;
+          });
+          return { ...p, components };
+        }
+
+        // follow-ups
+        const followUps = p.followUps.map((fu) => {
+          if (fu.components.some((c) => c.id === compId)) {
+            const components = fu.components.filter((c) => {
+              if (c.id === compId) {
+                deleted = c;
+                return false;
+              }
+              return true;
+            });
+            return { ...fu, components };
+          }
+          return fu;
+        });
+
+        return { ...p, followUps };
+      });
+
+      // persist lastDeleted for undo, and clear selection
+      if (deleted) {
+        setLastDeleted({
+          component: deleted,
+          parentPopupId:
+            findParentAndPopup(compId).parent?.id ??
+            findParentAndPopup(compId).popup?.id ??
+            "",
+        });
+        setSelectedComponentId(null);
+        setHoveredComponentId(null);
+      }
+
+      return next;
+    });
+  };
+
+  // ---------- Normalize existing popups (fill defaults when styles missing or empty) ----------
+  const ensureStylesInPopups = (popupsArr: PopupData[]): PopupData[] =>
+    popupsArr.map((p) => ({
+      ...p,
+      components: p.components.map((c) => {
+        const hasStyles = c.styles && Object.keys(c.styles).length > 0;
+        return {
+          ...c,
+          styles: hasStyles ? { ...c.styles } : getDefaultStyles(c.type),
+        };
+      }),
+      followUps: p.followUps.map((fu) => ({
+        ...fu,
+        components: fu.components.map((c) => {
+          const hasStyles = c.styles && Object.keys(c.styles).length > 0;
+          return {
+            ...c,
+            styles: hasStyles ? { ...c.styles } : getDefaultStyles(c.type),
+          };
+        }),
+      })),
+    }));
+
+  useEffect(() => {
+    // run once on mount to normalize any existing components without styles or with empty {}
+    setPopups((prev) => ensureStylesInPopups(prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ---------- helpers to find parent/main popup ---------- */
   function findParentAndPopup(id: string): {
@@ -355,8 +324,8 @@ export default function PopupBuilder() {
 
     const baseStyles = getDefaultStyles(draggedType);
     const newComp = createNewComponent({ draggedType, x, y, baseStyles });
-    setPopups((prev:any) =>
-      prev.map((p:any) => {
+    setPopups((prev: any) =>
+      prev.map((p: any) => {
         if (p.id === popupId) {
           return { ...p, components: [...p.components, newComp] };
         }
@@ -564,20 +533,6 @@ export default function PopupBuilder() {
     setActivePopupId(id);
   };
 
-  // const updateComponentField = (e, content, active_popup_id, component) => {
-  //   console.log("=> ", e.target.value, content, active_popup_id, component);
-  //   const obj = popups;
-  //   const the_popup = obj.find((ele) => ele.id === active_popup_id);
-  //   console.log("the popup ", the_popup);
-  //   const the_component = the_popup?.components?.find(
-  //     (ele) => ele.id === component.id
-  //   );
-
-  //   console.log("the component ", the_component);
-  //   the_component[content] = e.target.value;
-  //   the_component["label"] = e.target.value;
-  // };
-
   // PopupBuilder scope (uses selectedComponentId, setPopups, popups)
   const updateComponentField = (field: string, value: any) => {
     if (!selectedComponentId) return;
@@ -624,10 +579,11 @@ export default function PopupBuilder() {
     });
   };
 
+
   // --- render ---
   return (
     <div
-      className="flex h-screen bg-gray-100 select-none"
+      className="flex h-screen bg-gray-100 select-none text-black"
       onMouseMove={handleMouseMove}
       onMouseUp={stopDragComponent}
     >
@@ -696,7 +652,7 @@ export default function PopupBuilder() {
                     {activeMain.components.map((comp) => (
                       <div
                         key={comp.id}
-                        className={`absolute cursor-move ${
+                        className={`absolute ${
                           comp.id === selectedComponentId
                             ? "ring-2 ring-blue-400"
                             : ""
@@ -705,12 +661,37 @@ export default function PopupBuilder() {
                           startDragComponent(e, activeMain.id, comp.id)
                         }
                         onClick={() => setSelectedComponentId(comp.id)}
+                        onMouseEnter={() => setHoveredComponentId(comp.id)}
+                        onMouseLeave={() =>
+                          setHoveredComponentId((cur) =>
+                            cur === comp.id ? null : cur
+                          )
+                        }
                         style={{
                           left: comp.position.x,
                           top: comp.position.y,
+                          cursor: "move",
                           ...comp.styles,
                         }}
                       >
+                        {/* Delete button: visible on hover or when selected */}
+                        {(hoveredComponentId === comp.id ||
+                          selectedComponentId === comp.id) && (
+                          <button
+                            data-no-drag="true"
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              deleteComponent(comp.id);
+                            }}
+                            aria-label="Delete component"
+                            title="Delete component"
+                            className="absolute -right-5 -top-3 w-6 h-6 rounded-full flex items-center justify-center bg-white shadow text-xs"
+                            style={{ zIndex: 40 }}
+                          >
+                            <MdDelete color="red" />
+                          </button>
+                        )}
+
                         {RenderComponent(comp)}
 
                         {comp.type === "button" && (
@@ -780,7 +761,7 @@ export default function PopupBuilder() {
                       {fu.components.map((comp) => (
                         <div
                           key={comp.id}
-                          className={`absolute cursor-move ${
+                          className={`absolute ${
                             comp.id === selectedComponentId
                               ? "ring-2 ring-blue-400"
                               : ""
@@ -789,12 +770,36 @@ export default function PopupBuilder() {
                             startDragComponent(e, fu.id, comp.id)
                           }
                           onClick={() => setSelectedComponentId(comp.id)}
+                          onMouseEnter={() => setHoveredComponentId(comp.id)}
+                          onMouseLeave={() =>
+                            setHoveredComponentId((cur) =>
+                              cur === comp.id ? null : cur
+                            )
+                          }
                           style={{
                             left: comp.position.x,
                             top: comp.position.y,
+                            cursor: "move",
                             ...comp.styles,
                           }}
                         >
+                          {(hoveredComponentId === comp.id ||
+                            selectedComponentId === comp.id) && (
+                            <button
+                              data-no-drag="true"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                deleteComponent(comp.id);
+                              }}
+                              aria-label="Delete component"
+                              title="Delete component"
+                              className="absolute -right-5 -top-3 w-6 h-6 rounded-full flex items-center justify-center bg-white shadow text-xs"
+                              style={{ zIndex: 40 }}
+                            >
+                              <MdDelete color="red" />
+                            </button>
+                          )}
+
                           {RenderComponent(comp)}
                           {comp.type === "button" && (
                             <select
@@ -844,6 +849,7 @@ export default function PopupBuilder() {
         setDraggedType={setDraggedType}
         setShowJson={setShowJson}
         updateComponentField={updateComponentField} // <-- new prop
+        setPopups={setPopups}
       />
     </div>
   );

@@ -1,0 +1,51 @@
+export const POPUP_PRESETS = {
+  modal: {
+    label: "Modal Pop-up",
+    desktop: { width: 700, height: 500 },
+    mobile: { width: "95%", height: 400 },
+    backdropOpacity: 0.5,
+    position: "center",
+  },
+  slideIn: {
+    label: "Slide-in Pop-up",
+    desktop: { width: 400, height: 320 },
+    mobile: { width: "90%", height: "auto" },
+    backdropOpacity: 0,
+    position: "bottom-right",
+  },
+  floatingBar: {
+    label: "Floating Bar / Banner",
+    desktop: { width: "100%", height: 80 },
+    mobile: { width: "100%", height: 100 },
+    backdropOpacity: 0,
+    position: "top",
+  },
+  fullscreen: {
+    label: "Fullscreen Pop-up",
+    desktop: { width: 800, height: 600 },
+    mobile: { width: "100%", height: "100%" },
+    backdropOpacity: 0.9,
+    position: "center",
+  },
+  exitIntent: {
+    label: "Exit-Intent Pop-up",
+    desktop: { width: 700, height: 500 },
+    mobile: { width: "90%", height: "auto" },
+    backdropOpacity: 0.7,
+    position: "center",
+  },
+  inline: {
+    label: "Inline Embedded Pop-up",
+    desktop: { width: "100%", height: "auto" },
+    mobile: { width: "100%", height: "auto" },
+    backdropOpacity: 0,
+    position: "none",
+  },
+  sidebar: {
+    label: "Sidebar Pop-up",
+    desktop: { width: 350, height: "100%" },
+    mobile: { width: "100%", height: "85%" },
+    backdropOpacity: 0.4,
+    position: "right",
+  },
+};

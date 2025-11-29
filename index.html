@@ -1,4 +1,4 @@
-<!doctype html>
+<!-- <!doctype html>
 <html lang="en">
 
 <head>
@@ -253,4 +253,429 @@
 
 </body>
 
+</html> -->
+
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Popup JSON Quick Preview</title>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --muted: #94a3b8;
+      --accent: #2563eb;
+    }
+
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system;
+      margin: 0;
+      background: #0b1220;
+      color: #e6eef8;
+      display: flex;
+      gap: 20px;
+      padding: 30px;
+    }
+
+    .panel {
+      width: 560px;
+      background: #071028;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, .6);
+    }
+
+    textarea {
+      width: 100%;
+      height: 320px;
+      background: #071a33;
+      color: #e6eef8;
+      border: 1px solid #0b2a4b;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+
+    .btn {
+      background: var(--accent);
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: white;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .btn.secondary {
+      background: #0b2540;
+    }
+
+    .controls {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .error {
+      background: #3a1212;
+      color: #ffb4b4;
+      padding: 8px;
+      border-radius: 6px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* Popup preview overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.65);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .popup-frame {
+      position: relative; /* Important: children absolute positions are relative to this */
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(2, 6, 23, 0.7);
+      display: block;
+    }
+
+    .close-x {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      background: #111827;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      z-index: 60;
+      border: none;
+    }
+
+    /* component default styles so they're readable on dark backgrounds inside frame */
+    .preview-text { color: #0f172a; }
+    .preview-heading { font-weight: 700; color: #0b1220; }
+    .preview-link { color: var(--accent); text-decoration: underline; }
+    .preview-button { background: var(--accent); color: #fff; padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; }
+    .preview-image { max-width: 100%; display: block; }
+  </style>
+</head>
+<body>
+
+  <div class="panel">
+    <h2>Popup JSON (paste here)</h2>
+    <textarea id="jsonInput">[{"id":"a23d3dcd-3620-47fb-91f4-270a14e66425","name":"Popup 1","width":500,"height":400,"backgroundColor":"#ffffff","backgroundImage":"","components":[{"id":"bddc2054-4b13-4ad0-92cf-2a0e15c7c5d2","type":"link","label":"Click Here","content":"Click Here","placeholder":"Click Here","src":"https://www.youtube.com/","position":{"x":166,"y":111},"styles":{"color":"#2563eb","textDecoration":"underline","fontSize":"14px","display":"block"}}],"followUps":[]}]</textarea>
+
+    <div class="controls">
+      <button id="renderBtn" class="btn">Render Preview</button>
+      <button id="downloadBtn" class="btn secondary">Download</button>
+    </div>
+
+    <div id="error" class="error"></div>
+  </div>
+
+  <script>
+    const errorBox = document.getElementById("error");
+
+    function showError(msg) {
+      errorBox.style.display = "block";
+      errorBox.textContent = msg;
+    }
+
+    function hideError() {
+      errorBox.style.display = "none";
+      errorBox.textContent = "";
+    }
+
+    // flattens popup + followups all into one list
+    function flattenPopups(list) {
+      const all = [];
+      function traverse(p) {
+        all.push(p);
+        (p.followUps || []).forEach(traverse);
+      }
+      list.forEach(traverse);
+      return all;
+    }
+
+    // helper to apply styles from JSON safely
+    function applyStylesToElement(el, styles) {
+      if (!styles) return;
+      for (const key in styles) {
+        if (!Object.prototype.hasOwnProperty.call(styles, key)) continue;
+        const val = styles[key];
+        // if number -> px (for layout numeric props); strings are used as-is
+        const final = (typeof val === "number") ? (val + "px") : String(val);
+        try {
+          // direct assignment (expects camelCase keys like fontSize, backgroundColor)
+          el.style[key] = final;
+        } catch (err) {
+          // ignore unknown style keys
+          // console.warn("style apply error", key, final, err);
+        }
+      }
+    }
+
+    function renderPopupModal(rawPopups) {
+      hideError();
+
+      const popups = flattenPopups(rawPopups);
+      if (!popups || popups.length === 0) {
+        return showError("No popups found in JSON.");
+      }
+
+      let activePopupId = popups[0]?.id;
+
+      const findPopup = (id) => popups.find(p => p.id === id);
+
+      function openPopup(id) {
+        const popup = findPopup(id);
+        if (!popup) {
+          return showError("Popup not found: " + id);
+        }
+
+        // create overlay/frame
+        const overlay = document.createElement("div");
+        overlay.className = "overlay";
+
+        const frame = document.createElement("div");
+        frame.className = "popup-frame";
+        frame.style.width = (popup.width || 400) + "px";
+        frame.style.height = (popup.height || 300) + "px";
+
+        // background color or image
+        if (popup.backgroundImage) {
+          frame.style.backgroundImage = 'url(' + popup.backgroundImage + ')';
+          frame.style.backgroundSize = "cover";
+        } else {
+          frame.style.background = popup.backgroundColor || "#fff";
+        }
+
+        overlay.appendChild(frame);
+
+        // close behavior
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "close-x";
+        closeBtn.innerText = "✖";
+        closeBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          overlay.remove();
+        };
+        frame.appendChild(closeBtn);
+
+        // clicking outside frame closes (click on overlay)
+        overlay.addEventListener("click", (ev) => {
+          if (ev.target === overlay) overlay.remove();
+        });
+
+        // ensure frame positioning for absolute children
+        frame.style.position = "relative";
+
+        // render components inside the frame
+        (popup.components || []).forEach((comp) => {
+          const wrapper = document.createElement("div");
+          wrapper.style.position = "absolute";
+          wrapper.style.left = (comp.position?.x ?? 0) + "px";
+          wrapper.style.top = (comp.position?.y ?? 0) + "px";
+          wrapper.style.boxSizing = "border-box";
+
+          // Default: make sure text is visible on white background
+          wrapper.className = "preview-component";
+
+          // apply style values that are present (fontSize, color, padding, etc.)
+          applyStylesToElement(wrapper, comp.styles || {});
+
+          // create actual element based on type
+          let el = null;
+
+          switch ((comp.type || "").toLowerCase()) {
+            case "heading":
+              el = document.createElement("h3");
+              el.className = "preview-heading";
+              el.textContent = comp.content || comp.label || "Heading";
+              break;
+
+            case "text":
+              el = document.createElement("p");
+              el.className = "preview-text";
+              el.textContent = comp.content || comp.label || "";
+              break;
+
+            case "textarea":
+              el = document.createElement("textarea");
+              el.rows = 4;
+              el.placeholder = comp.placeholder || comp.content || "";
+              break;
+
+            case "link":
+              el = document.createElement("a");
+              el.className = "preview-link";
+              el.href = comp.src || comp.href || "#";
+              el.target = "_blank";
+              el.rel = "noopener noreferrer";
+              el.textContent = comp.content || comp.label || comp.href || el.href;
+              if (comp.styles) applyStylesToElement(el, comp.styles);
+              break;
+
+            case "linkbox":
+            case "link-box":
+              // a styled link container
+              el = document.createElement("a");
+              el.className = "preview-link";
+              el.href = comp.src || comp.href || "#";
+              el.target = "_blank";
+              el.rel = "noopener noreferrer";
+              el.textContent = comp.content || comp.label || "Link";
+              el.style.display = "inline-block";
+              el.style.padding = comp.styles?.padding || "8px 12px";
+              if (comp.styles) applyStylesToElement(el, comp.styles);
+              break;
+
+            case "image":
+              el = document.createElement("img");
+              el.className = "preview-image";
+              el.src = comp.src || comp.content || "";
+              el.alt = comp.label || "";
+              // allow styles like width/height/objectFit to be applied
+              if (comp.styles) applyStylesToElement(el, comp.styles);
+              break;
+
+            case "imagebox":
+            case "image-box":
+              el = document.createElement("div");
+              el.style.display = "flex";
+              el.style.justifyContent = "center";
+              el.style.alignItems = "center";
+              el.style.width = (comp.styles?.width ?? "150px");
+              el.style.height = (comp.styles?.height ?? "100px");
+              el.textContent = comp.label || "Image Box";
+              if (comp.styles) applyStylesToElement(el, comp.styles);
+              break;
+
+            case "video":
+              el = document.createElement("video");
+              el.controls = true;
+              el.src = comp.src || comp.content || "";
+              el.style.maxWidth = "100%";
+              if (comp.styles) applyStylesToElement(el, comp.styles);
+              break;
+
+            case "map":
+              // if comp.src is a map embed URL, use iframe; otherwise show placeholder
+              if (comp.src && (comp.src.includes("google") || comp.src.includes("openstreetmap") || comp.src.includes("embed"))) {
+                el = document.createElement("iframe");
+                el.src = comp.src;
+                el.width = comp.styles?.width || "300";
+                el.height = comp.styles?.height || "200";
+                el.frameBorder = "0";
+              } else {
+                el = document.createElement("div");
+                el.textContent = comp.label || "Map";
+                el.style.width = comp.styles?.width || "180px";
+                el.style.height = comp.styles?.height || "150px";
+                el.style.background = "#e2e8f0";
+                el.style.display = "flex";
+                el.style.alignItems = "center";
+                el.style.justifyContent = "center";
+                if (comp.styles) applyStylesToElement(el, comp.styles);
+              }
+              break;
+
+            case "icon":
+              el = document.createElement("span");
+              el.textContent = comp.content || comp.label || "⭐";
+              if (comp.styles) applyStylesToElement(el, comp.styles);
+              break;
+
+            case "button":
+              el = document.createElement("button");
+              el.className = "preview-button";
+              el.textContent = comp.label || comp.content || "Button";
+              if (comp.styles) applyStylesToElement(el, comp.styles);
+              // support action: open popup or close
+              el.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                if (comp.action?.type === "openPopup") {
+                  // close current overlay then open target popup
+                  overlay.remove();
+                  openPopup(comp.action.targetPopupId);
+                } else {
+                  // close overlay
+                  overlay.remove();
+                }
+              });
+              break;
+
+            case "input":
+            default:
+              // fallback to an input for unknown types
+              el = document.createElement("input");
+              el.placeholder = comp.placeholder || comp.content || "";
+              if (comp.styles) applyStylesToElement(el, comp.styles);
+              break;
+          }
+
+          // attach element and add any component-level click actions (like openPopup)
+          if (el) {
+            // if comp has action for openPopup and the element is not a button, wire it:
+            if (!el.onclick && comp.action?.type === "openPopup") {
+              el.style.cursor = "pointer";
+              el.addEventListener("click", (ev) => {
+                ev.stopPropagation();
+                overlay.remove();
+                openPopup(comp.action.targetPopupId);
+              });
+            }
+
+            wrapper.appendChild(el);
+            frame.appendChild(wrapper);
+          }
+        });
+
+        document.body.appendChild(overlay);
+      }
+
+      // open the initial popup
+      openPopup(activePopupId);
+    }
+
+    /* EVENTS */
+    document.getElementById("renderBtn").onclick = () => {
+      hideError();
+
+      try {
+        const text = document.getElementById("jsonInput").value.trim();
+        if (!text) return showError("Please paste popup JSON into the textarea.");
+        const data = JSON.parse(text);
+        renderPopupModal(data);
+      } catch (e) {
+        showError("Invalid JSON: " + (e && e.message ? e.message : e));
+      }
+    };
+
+    document.getElementById("downloadBtn").onclick = () => {
+      const text = document.getElementById("jsonInput").value;
+      const blob = new Blob([text], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "popup.json";
+      a.click();
+    };
+  </script>
+</body>
 </html>
