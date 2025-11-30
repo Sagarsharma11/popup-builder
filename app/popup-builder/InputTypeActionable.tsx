@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import type { ComponentData, PopupData } from "./types";
 
 type Rule = {
-  conditionType: "equals" | "contains" | "regex";
+  conditionType: "equals" | "contains" | "regex" | "like";
   value: string;
   targetPopupId: string;
 };
@@ -34,6 +34,7 @@ export default function InputTypeActionable({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const rules: Rule[] = (component.actionRules as Rule[]) ?? [];
+  const operator = component.rulesOperator ?? "OR"; // default OR
 
   const containingPopup = useMemo(() => {
     for (const p of popups) {
@@ -52,46 +53,41 @@ export default function InputTypeActionable({
 
   const setRules = (nextRules: Rule[]) => updateComponentField("actionRules", nextRules);
 
+  const setOperator = (op: "AND" | "OR") => updateComponentField("rulesOperator", op);
+
   const addRule = () => setRules([...rules, { conditionType: "equals", value: "", targetPopupId: "" }]);
   const updateRuleAt = (idx: number, patch: Partial<Rule>) => setRules(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   const removeRuleAt = (idx: number) => setRules(rules.filter((_, i) => i !== idx));
 
-  // when opening: ensure selected in builder and disable body scroll
+  // open modal helper
   const openModal = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     setSelectedComponentId?.(component.id);
     setOpen(true);
   };
 
-  // cleanup body scroll on close
   const closeModal = () => {
     setOpen(false);
     triggerRef.current?.focus();
   };
 
-  // useLayoutEffect for immediate focus (runs before paint)
   useLayoutEffect(() => {
     if (!open) return;
-    // disable body scroll (helps some browsers)
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    // small timeout to ensure portal content mounted
     const t = setTimeout(() => {
       try {
-        console.debug("[InputTypeActionable] focusing first input:", firstInputRef.current);
         firstInputRef.current?.focus({ preventScroll: true });
-        // set selection to end
         if (firstInputRef.current) {
-          const val = firstInputRef.current.value;
-          firstInputRef.current.setSelectionRange(val.length, val.length);
+          const v = firstInputRef.current.value;
+          firstInputRef.current.setSelectionRange(v.length, v.length);
         }
       } catch (err) {
         console.warn("[InputTypeActionable] focus failed", err);
       }
     }, 20);
 
-    // ESC handler
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === "Escape") closeModal();
     };
@@ -104,7 +100,7 @@ export default function InputTypeActionable({
     };
   }, [open]);
 
-  // build trigger (inline) and portal modal
+  // trigger button
   const trigger = (
     <button
       ref={triggerRef}
@@ -124,24 +120,13 @@ export default function InputTypeActionable({
           className="fixed inset-0 flex items-center justify-center"
           style={{ zIndex: 99999 }}
           onMouseDown={() => {
-            // clicking overlay closes
             closeModal();
           }}
           role="dialog"
           aria-modal="true"
         >
-          {/* overlay */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(0,0,0,0.4)",
-              pointerEvents: "auto",
-              zIndex: 99999,
-            }}
-          />
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", pointerEvents: "auto", zIndex: 99999 }} />
 
-          {/* panel */}
           <div
             role="document"
             onMouseDown={(e) => e.stopPropagation()}
@@ -156,12 +141,28 @@ export default function InputTypeActionable({
               borderRadius: 8,
               padding: 16,
               boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-            //   color="#1f1f1f"
             }}
             data-no-drag="true"
           >
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-              <h3 style={{ fontSize: 18, margin: 0, color:"black" }}>Input Action Rules</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <h3 style={{ fontSize: 18, margin: 0, color: "black" }}>Input Action Rules</h3>
+
+                {/* Operator selector */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <label style={{ fontSize: 12, color: "#444" }}>Match</label>
+                  <select
+                    value={operator}
+                    onChange={(e) => setOperator(e.target.value === "AND" ? "AND" : "OR")}
+                    data-no-drag="true"
+                    style={{ padding: "6px 8px", borderRadius: 6 }}
+                  >
+                    <option value="OR">Any (OR)</option>
+                    <option value="AND">All (AND)</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <button onClick={closeModal} style={{ padding: "6px 10px", color: "black" }}>
                   Close
@@ -170,18 +171,11 @@ export default function InputTypeActionable({
             </div>
 
             <p style={{ color: "#555", marginBottom: 12 }}>
-              Add rules to make this input actionable. When typed value matches a rule, the configured action will trigger.
+              Add rules to make this input actionable. When typed value matches rules (combined with the chosen operator), the configured action will trigger.
             </p>
 
             <div style={{ marginBottom: 12 }}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  addRule();
-                }}
-                data-no-drag="true"
-                style={{ padding: "6px 10px", fontSize: 13, color:"black" }}
-              >
+              <button onClick={(e) => { e.stopPropagation(); addRule(); }} data-no-drag="true" style={{ padding: "6px 10px", fontSize: 13 }}>
                 + Add Rule
               </button>
             </div>
@@ -195,10 +189,11 @@ export default function InputTypeActionable({
                     <select
                       value={rule.conditionType}
                       onChange={(e) => updateRuleAt(idx, { conditionType: e.target.value as Rule["conditionType"] })}
-                      style={{ padding: 6, borderRadius: 6, color:"black"  }}
+                      style={{ padding: 6, borderRadius: 6, color: "black" }}
                     >
                       <option value="equals">Equals</option>
                       <option value="contains">Contains</option>
+                      <option value="like">Like</option>
                       <option value="regex">Regex</option>
                     </select>
 
@@ -208,7 +203,7 @@ export default function InputTypeActionable({
                       placeholder="value / pattern"
                       value={rule.value}
                       onChange={(e) => updateRuleAt(idx, { value: e.target.value })}
-                      style={{ flex: 1, padding: 6, borderRadius: 6, border: "1px solid #ccc", color:"black"  }}
+                      style={{ flex: 1, padding: 6, borderRadius: 6, border: "1px solid #ccc", color: "black" }}
                     />
                   </div>
 
@@ -216,7 +211,7 @@ export default function InputTypeActionable({
                     <select
                       value={rule.targetPopupId}
                       onChange={(e) => updateRuleAt(idx, { targetPopupId: e.target.value })}
-                      style={{ flex: 1, padding: 6, borderRadius: 6, color:"black"  }}
+                      style={{ flex: 1, padding: 6, borderRadius: 6, color: "black" }}
                     >
                       <option value="">Choose target popup</option>
                       <option value="__close">Close popup</option>
@@ -227,19 +222,13 @@ export default function InputTypeActionable({
                       ))}
                     </select>
 
-                    <button
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        removeRuleAt(idx);
-                      }}
-                      style={{ color: "#c00" }}
-                    >
+                    <button onClick={(ev) => { ev.stopPropagation(); removeRuleAt(idx); }} style={{ color: "#c00" }}>
                       Delete
                     </button>
                   </div>
 
                   <div style={{ color: "#777", fontSize: 12, marginTop: 8 }}>
-                    Tip: regex uses JavaScript RegExp (e.g. <code>^hello</code>).
+                    Tip: "like" supports `%` as wildcard (e.g. <code>%sagar%</code>) — regex uses JavaScript RegExp (e.g. <code>^hello</code>).
                   </div>
                 </div>
               ))}
@@ -250,16 +239,8 @@ export default function InputTypeActionable({
       )
     : null;
 
-  // debugging info exposed to the console
-  // helps check if component thinks it's open and where focus will go
-  // remove these logs when resolved
   if (process.env.NODE_ENV !== "production") {
-    console.debug("[InputTypeActionable] render", {
-      compId: component.id,
-      open,
-      rulesCount: rules.length,
-      firstInputRef: firstInputRef.current,
-    });
+    console.debug("[InputTypeActionable] render", { compId: component.id, open, rulesCount: rules.length, operator });
   }
 
   return (

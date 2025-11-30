@@ -1,9 +1,8 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import StylePicker from "./StylePicker";
 import {
   MdTitle,
   MdTextFields,
-  // MdTextarea,
   MdLink,
   MdImage,
   MdVideocam,
@@ -12,11 +11,14 @@ import {
   MdRadioButtonChecked,
   MdInput,
   MdPhotoSizeSelectLarge,
+  MdRadioButtonUnchecked,
+  MdCheckBoxOutlineBlank,
+  MdArrowDropDownCircle,
 } from "react-icons/md";
 import { FaRegFileAlt } from "react-icons/fa";
-import { BiLinkAlt, BiCube } from "react-icons/bi";
-import { AiOutlineFileImage } from "react-icons/ai";
+import { BiLinkAlt } from "react-icons/bi";
 import { POPUP_PRESETS } from "./popupPresets";
+import TinyRoundedBadge from "./components/TinyRoundedBadge";
 
 const ICONS: Record<string, React.ReactNode> = {
   heading: <MdTitle size={24} />,
@@ -25,12 +27,17 @@ const ICONS: Record<string, React.ReactNode> = {
   link: <MdLink size={22} />,
   linkBox: <BiLinkAlt size={22} />,
   image: <MdImage size={22} />,
-  // imageBox: <AiOutlineFileImage size={22} />,
   video: <MdVideocam size={22} />,
   map: <MdMap size={22} />,
   icon: <MdInsertEmoticon size={22} />,
-  button: <MdRadioButtonChecked size={22} />,
+
+  button: <TinyRoundedBadge label="BUTTON" size="sm" color="#111827" />,
   input: <MdInput size={22} />,
+
+  // NEW COMPONENT TYPES
+  "radio buttons group": <MdRadioButtonUnchecked size={22} />,
+  "checkboxes group": <MdCheckBoxOutlineBlank size={22} />,
+  "select dropdown": <MdArrowDropDownCircle size={22} />,
 };
 
 const RightSideBar = ({
@@ -40,13 +47,14 @@ const RightSideBar = ({
   popups,
   selectedComp,
   updateComponentStyle,
-  updateComponentField, // <-- new prop
+  updateComponentField,
   setDraggedType,
   setShowJson,
-  setPopups
+  setPopups,
 }: any) => {
-  const activeBg = (findParentAndPopup(activePopupId).popup ?? popups[0])
-    .backgroundColor;
+  const activePopup = (findParentAndPopup(activePopupId).popup ??
+    popups[0]) as any;
+  const activeBg = activePopup.backgroundColor;
 
   const components = [
     "heading",
@@ -61,16 +69,19 @@ const RightSideBar = ({
     "icon",
     "button",
     "input",
+    "radio buttons group",
+    "checkboxes group",
+    "select dropdown",
   ];
 
   const updatePopupSize = (popupId: string, width: any, height: any) => {
-    setPopups((prev) =>
-      prev.map((p) =>
+    setPopups((prev: any) =>
+      prev.map((p: any) =>
         p.id === popupId
           ? { ...p, width, height }
           : {
               ...p,
-              followUps: p.followUps.map((fu) =>
+              followUps: p.followUps.map((fu: any) =>
                 fu.id === popupId ? { ...fu, width, height } : fu
               ),
             }
@@ -80,19 +91,132 @@ const RightSideBar = ({
 
   const applyPreset = (presetKey: string) => {
     if (!presetKey) return;
-
     const preset = POPUP_PRESETS[presetKey];
     if (!preset) return;
-
     const { desktop } = preset;
-
     updatePopupSize(activePopupId, desktop.width, desktop.height);
   };
 
+  // helpers for options editor
+  const isOptionType = (type?: string) =>
+    type === "radio buttons group" ||
+    type === "checkboxes group" ||
+    type === "select dropdown";
+
+  const onChangeOption = (idx: number, newVal: string) => {
+    if (!selectedComp) return;
+    const current: string[] = Array.isArray(selectedComp.options)
+      ? selectedComp.options
+      : [];
+    const next = current.map((o: string, i: number) =>
+      i === idx ? newVal : o
+    );
+    updateComponentField("options", next);
+  };
+
+  const addOption = () => {
+    if (!selectedComp) return;
+    const current: string[] = Array.isArray(selectedComp.options)
+      ? selectedComp.options
+      : [];
+    updateComponentField("options", [
+      ...current,
+      `Option ${current.length + 1}`,
+    ]);
+  };
+
+  const removeOption = (idx: number) => {
+    if (!selectedComp) return;
+    const current: string[] = Array.isArray(selectedComp.options)
+      ? selectedComp.options
+      : [];
+    const next = current.filter((_, i) => i !== idx);
+    updateComponentField("options", next);
+  };
+
+  // ----- Width/Height UI logic (shared for popup & component styles) -----
+  const PIXEL_CHOICES = useMemo(() => {
+    const arr: number[] = [];
+    for (let i = 100; i <= 1000; i += 50) arr.push(i);
+    return arr;
+  }, []);
+
+  // local controlled inputs for popup custom px fields
+  const [customW, setCustomW] = useState<string>(
+    String(activePopup.width ?? "")
+  );
+  const [customH, setCustomH] = useState<string>(
+    String(activePopup.height ?? "")
+  );
+
+  React.useEffect(() => {
+    setCustomW(String(activePopup.width ?? ""));
+    setCustomH(String(activePopup.height ?? ""));
+  }, [activePopup.width, activePopup.height]);
+
+  const applyWidthPx = (px: number | string) => {
+    const w = typeof px === "string" ? parseInt(px, 10) : px;
+    if (!w || isNaN(w) || w <= 0) return;
+    updatePopupSize(activePopupId, w, activePopup.height);
+  };
+
+  const applyHeightPx = (px: number | string) => {
+    const h = typeof px === "string" ? parseInt(px, 10) : px;
+    if (!h || isNaN(h) || h <= 0) return;
+    updatePopupSize(activePopupId, activePopup.width, h);
+  };
+
+  // ----- Component style special controls state -----
+  const compStyleWidth = selectedComp?.styles?.width ?? "";
+  const compStyleHeight = selectedComp?.styles?.height ?? "";
+
+  const [compCustomW, setCompCustomW] = useState<string>(
+    compStyleWidth !== undefined && compStyleWidth !== null
+      ? String(compStyleWidth)
+      : ""
+  );
+  const [compCustomH, setCompCustomH] = useState<string>(
+    compStyleHeight !== undefined && compStyleHeight !== null
+      ? String(compStyleHeight)
+      : ""
+  );
+
+  React.useEffect(() => {
+    setCompCustomW(
+      selectedComp &&
+        selectedComp.styles &&
+        selectedComp.styles.width !== undefined
+        ? String(selectedComp.styles.width)
+        : ""
+    );
+    setCompCustomH(
+      selectedComp &&
+        selectedComp.styles &&
+        selectedComp.styles.height !== undefined
+        ? String(selectedComp.styles.height)
+        : ""
+    );
+  }, [
+    selectedComp?.id,
+    selectedComp?.styles?.width,
+    selectedComp?.styles?.height,
+  ]);
+
+  const applyComponentStylePx = (
+    key: "width" | "height",
+    px: number | string
+  ) => {
+    if (!selectedComp) return;
+    const v = typeof px === "string" ? parseInt(px, 10) : px;
+    if (!v || isNaN(v) || v <= 0) return;
+    updateComponentStyle(key, v);
+  };
+
   return (
-    <aside className="w-72 bg-white border-l p-4 overflow-y-auto text-black">
+    <aside className="w-85 bg-white border-l border-gray-200 p-4 overflow-y-auto text-black">
+      {/* preset select */}
       <select
-        className="w-full border px-2 py-2 rounded mb-3"
+        className="w-full px-2 py-2 rounded mb-3 text-sm shadow-sm ring-1 ring-gray-100"
         onChange={(e) => applyPreset(e.target.value)}
       >
         <option value="">Select Popup Size</option>
@@ -102,19 +226,113 @@ const RightSideBar = ({
           </option>
         ))}
       </select>
+
+      {/* NEW: Width & Height quick controls (popup) */}
+      <div className="mb-3">
+        <label className="block text-sm font-medium mb-1">Width (px)</label>
+
+        <div className="flex gap-2 mb-2">
+          <select
+            className="flex-1 px-2 py-2 rounded text-sm shadow-sm ring-1 ring-gray-100"
+            value={String(activePopup.width ?? "")}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v)) applyWidthPx(v);
+            }}
+          >
+            <option value="">Choose width</option>
+            {PIXEL_CHOICES.map((px) => (
+              <option key={px} value={px}>
+                {px}px
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            type="number"
+            min={1}
+            className="flex-1 rounded px-2 py-1 text-sm shadow-sm ring-1 ring-gray-100"
+            value={customW}
+            onChange={(e) => setCustomW(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                applyWidthPx(customW);
+              }
+            }}
+            onBlur={() => applyWidthPx(customW)}
+            placeholder="Custom px"
+          />
+          <button
+            onClick={() => applyWidthPx(customW)}
+            className="px-3 py-1 rounded text-sm bg-gray-50 hover:bg-gray-100"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-1">Height (px)</label>
+
+        <div className="flex gap-2 mb-2">
+          <select
+            className="flex-1 px-2 py-2 rounded text-sm shadow-sm ring-1 ring-gray-100"
+            value={String(activePopup.height ?? "")}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10);
+              if (!isNaN(v)) applyHeightPx(v);
+            }}
+          >
+            <option value="">Choose height</option>
+            {PIXEL_CHOICES.map((px) => (
+              <option key={px} value={px}>
+                {px}px
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            type="number"
+            min={1}
+            className="flex-1 rounded px-2 py-1 text-sm shadow-sm ring-1 ring-gray-100"
+            value={customH}
+            onChange={(e) => setCustomH(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                applyHeightPx(customH);
+              }
+            }}
+            onBlur={() => applyHeightPx(customH)}
+            placeholder="Custom px"
+          />
+          <button
+            onClick={() => applyHeightPx(customH)}
+            className="px-3 py-1 rounded text-sm bg-gray-50 hover:bg-gray-100"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+
       <h3 className="font-semibold mb-3">Properties</h3>
 
-      <label className="block text-sm mb-2">Popup Background:</label>
-      <input
-        type="color"
-        onChange={(e) => updatePopupBackground("color", e.target.value)}
-        value={activeBg}
-        className="mb-3 w-full h-8 p-0 border-0 rounded"
-      />
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          onChange={(e) => updatePopupBackground("color", e.target.value)}
+          value={activeBg}
+          className="mb-3 h-8 p-0 rounded shadow-sm "
+        />
+        <label className="block text-sm mb-2">Popup Background:</label>
+      </div>
       <input
         type="text"
         placeholder="Image URL"
-        className="w-full border rounded px-2 py-1 mb-3 text-sm"
+        className="w-full rounded px-2 py-1 mb-3 text-sm shadow-sm ring-1 ring-gray-100"
         onBlur={(e) => updatePopupBackground("image", e.target.value)}
       />
 
@@ -127,50 +345,214 @@ const RightSideBar = ({
 
       {selectedComp && (
         <>
-          <hr className="my-3" />
-          <h4 className="font-medium mb-2">
-            Selected: {selectedComp.type.toUpperCase()}
-          </h4>
-          {/* Attribute inputs (content/label/href/placeholder/src etc) */}
-          <input
-            value={selectedComp.content ?? ""}
-            onChange={(e) => updateComponentField("content", e.target.value)}
-            className="w-full border rounded rounded px-2 py-1 mb-2"
-            type="text"
-            placeholder="Content / text"
-          />
-          <div className="mb-2">
-            <label className="block text-xs text-gray-500 mb-1">src</label>
-            <input
-              value={selectedComp.src ?? ""}
-              onChange={(e) => updateComponentField("src", e.target.value)}
-              className="w-full border rounded px-2 py-1"
-              type="text"
-              placeholder="Image / media src"
-            />
-          </div>
+          <div className="my-3" />
 
-          <hr className="my-3" />
-          {/* Styles editor */}
-          <h5 className="text-sm font-medium mb-2">Styles</h5>
-          {/* Existing style keys */}
-          {Object.entries(selectedComp.styles || {}).map(([key, val]) => (
-            <div key={key} className="mb-2">
-              <label className="block text-xs text-gray-500 mb-1">{key}</label>
+          <div className="rounded p-3 bg-white shadow-sm ring-1 ring-gray-50">
+            <h4 className="font-medium mb-2">
+              Selected: {selectedComp.type.toUpperCase()}
+            </h4>
+
+            {/* Attribute inputs (content/label/href/placeholder/src etc) */}
+            <input
+              value={selectedComp.content ?? ""}
+              onChange={(e) => updateComponentField("content", e.target.value)}
+              className="w-full rounded px-2 py-1 mb-2 shadow-sm ring-1 ring-gray-100"
+              type="text"
+              placeholder="Content / text"
+            />
+
+            <div className="mb-2">
+              <label className="block text-xs text-gray-500 mb-1">src</label>
               <input
-                className="w-full border px-2 py-1"
-                value={String(val ?? "")}
-                onChange={(e) => updateComponentStyle(key, e.target.value)}
+                value={selectedComp.src ?? ""}
+                onChange={(e) => updateComponentField("src", e.target.value)}
+                className="w-full rounded px-2 py-1 shadow-sm ring-1 ring-gray-100"
+                type="text"
+                placeholder="Image / media src"
               />
             </div>
-          ))}
-          {/* Add new style key/value */}
-          <StylePicker
-            onAdd={(k, v) => {
-              updateComponentStyle(k, v);
-            }}
-            existingKeys={Object.keys(selectedComp?.styles || {})}
-          />
+
+            {/* Options editor for radio / checkbox / select */}
+            {isOptionType(selectedComp.type) && (
+              <>
+                <div className="my-3" />
+                <div className="mb-2 flex items-center justify-between">
+                  <h5 className="text-sm font-medium">Options</h5>
+                  <button
+                    onClick={addOption}
+                    className="text-xs px-2 py-1 rounded bg-gray-50 hover:bg-gray-100"
+                  >
+                    + Add
+                  </button>
+                </div>
+
+                <div className="space-y-2 mb-3">
+                  {(Array.isArray(selectedComp.options)
+                    ? selectedComp.options
+                    : []
+                  ).map((opt: string, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex gap-2 items-center bg-white rounded p-2 shadow-sm ring-1 ring-gray-50"
+                    >
+                      <input
+                        className="flex-1 rounded px-2 py-1 text-sm shadow-sm ring-1 ring-gray-100"
+                        value={opt}
+                        onChange={(e) => onChangeOption(idx, e.target.value)}
+                      />
+                      <button
+                        onClick={() => removeOption(idx)}
+                        className="text-xs text-red-500"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="my-3" />
+            {/* Styles editor */}
+            <h5 className="text-sm font-medium mb-2">Styles</h5>
+
+            {/* Existing style keys */}
+            <div className="space-y-3">
+              {Object.entries(selectedComp.styles || {}).map(([key, val]) => {
+                // Special UI for width/height: select + custom input (numbers)
+                if (key === "width" || key === "height") {
+                  const cur = val ?? "";
+                  return (
+                    <div
+                      key={key}
+                      className="bg-white rounded p-2 shadow-sm ring-1 ring-gray-50"
+                    >
+                      <label className="block text-xs text-gray-500 mb-1">
+                        {key}
+                      </label>
+
+                      <div className="flex gap-2 mb-2">
+                        <select
+                          className="flex-1 px-2 py-2 rounded text-sm shadow-sm ring-1 ring-gray-100"
+                          value={String(cur ?? "")}
+                          onChange={(e) => {
+                            const v = parseInt(e.target.value, 10);
+                            if (!isNaN(v))
+                              applyComponentStylePx(
+                                key as "width" | "height",
+                                v
+                              );
+                          }}
+                        >
+                          <option value="">Choose {key}</option>
+                          {PIXEL_CHOICES.map((px) => (
+                            <option key={px} value={px}>
+                              {px}px
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          className="flex-1 rounded px-2 py-1 text-sm shadow-sm ring-1 ring-gray-100"
+                          value={key === "width" ? compCustomW : compCustomH}
+                          onChange={(e) =>
+                            key === "width"
+                              ? setCompCustomW(e.target.value)
+                              : setCompCustomH(e.target.value)
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              applyComponentStylePx(
+                                key as "width" | "height",
+                                key === "width" ? compCustomW : compCustomH
+                              );
+                            }
+                          }}
+                          onBlur={() =>
+                            applyComponentStylePx(
+                              key as "width" | "height",
+                              key === "width" ? compCustomW : compCustomH
+                            )
+                          }
+                          placeholder="Custom px"
+                        />
+                        <button
+                          onClick={() =>
+                            applyComponentStylePx(
+                              key as "width" | "height",
+                              key === "width" ? compCustomW : compCustomH
+                            )
+                          }
+                          className="px-3 py-1 rounded text-sm bg-gray-50 hover:bg-gray-100"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // default input for other keys
+                return (
+                  <div
+                    key={key}
+                    className="bg-white rounded p-2 shadow-sm ring-1 ring-gray-50"
+                  >
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {key}
+                    </label>
+                    <input
+                      className="w-full rounded px-2 py-1 shadow-sm ring-1 ring-gray-100"
+                      value={String(val ?? "")}
+                      onChange={(e) =>
+                        updateComponentStyle(key, e.target.value)
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="my-3" />
+            {/* Add new style key/value */}
+            <StylePicker
+              onAdd={(k: string, v: any) => updateComponentStyle(k, v)}
+              existingKeys={Object.keys(selectedComp?.styles || {})}
+            />
+
+            <div className="my-3" />
+            {/* Rules operator (AND / OR) editor */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Rules operator
+              </label>
+              <select
+                value={selectedComp.rulesOperator ?? "OR"}
+                onChange={(e) =>
+                  updateComponentField(
+                    "rulesOperator",
+                    e.target.value === "AND" ? "AND" : "OR"
+                  )
+                }
+                className="w-full rounded px-2 py-1 text-sm shadow-sm ring-1 ring-gray-100"
+              >
+                <option value="OR">
+                  Any (OR) — fires when any rule matches
+                </option>
+                <option value="AND">
+                  All (AND) — fires only when all rules match
+                </option>
+              </select>
+              <div className="text-xs text-gray-500 mt-1">
+                Use this to combine multiple action rules for the selected
+                component.
+              </div>
+            </div>
+          </div>
         </>
       )}
 
@@ -184,7 +566,7 @@ const RightSideBar = ({
               key={key}
               draggable
               onDragStart={() => setDraggedType(key)}
-              className="flex flex-col items-center justify-center gap-2 p-3 bg-white rounded-lg shadow-md hover:shadow-md transition-shadow text-sm text-gray-800"
+              className="flex flex-col items-center justify-center gap-2 p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow text-sm text-gray-800"
               style={{ minHeight: 88, textAlign: "center" }}
               aria-label={`Add ${key}`}
               title={`Drag to add ${key}`}
@@ -193,10 +575,12 @@ const RightSideBar = ({
                 className="rounded-md p-2"
                 style={{
                   background:
-                    key === "button" ? "rgba(37,99,235,0.08)" : "transparent",
+                    key === "button" ? "rgba(37,99,235,0.06)" : "transparent",
                 }}
               >
-                <div className="text-gray-700">{ICONS[key]}</div>
+                <div className="text-gray-700">
+                  {ICONS[key] ?? <MdPhotoSizeSelectLarge />}
+                </div>
               </div>
               <div className="mt-1 text-xs text-gray-600">{key}</div>
             </button>
@@ -206,7 +590,7 @@ const RightSideBar = ({
         <div className="mt-4">
           <button
             onClick={() => setShowJson(true)}
-            className="w-full bg-black text-white py-2 rounded-md hover:opacity-95"
+            className="w-full py-2 rounded-md bg-black text-white hover:opacity-95"
           >
             Log JSON
           </button>

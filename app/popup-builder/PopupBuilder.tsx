@@ -16,6 +16,9 @@ import { MdDelete } from "react-icons/md";
 import { POPUP_PRESETS } from "./popupPresets";
 import ButtonTypeActionable from "./ButtonTypeActionable";
 import InputTypeActionable from "./InputTypeActionable";
+import RadioTypeActionable from "./RadioTypeActionable";
+import CheckboxesTypeActionable from "./CheckboxesTypeActionable";
+import SelectTypeActionable from "./SelectTypeActionable";
 
 export default function PopupBuilder() {
   const [popups, setPopups] = useState<PopupData[]>([
@@ -648,7 +651,7 @@ export default function PopupBuilder() {
                       boxSizing: "border-box",
                     }}
                   >
-                    <p className="text-center p-2">{ele?.id}</p>
+                    <p style={{color: ele.backgroundColor}} className="text-center p-2">{ele?.id}</p>
 
                     {activeMain.components.map((comp) => (
                       <div
@@ -707,6 +710,35 @@ export default function PopupBuilder() {
                           activeMain={activeMain}
                           setSelectedComponentId={setSelectedComponentId}
                         />
+                        {comp.type === "radio buttons group" && (
+                          <RadioTypeActionable
+                            component={comp}
+                            updateComponentField={updateComponentField}
+                            popups={popups}
+                            activeMain={activeMain}
+                            setSelectedComponentId={setSelectedComponentId}
+                          />
+                        )}
+
+                        {comp.type === "checkboxes group" && (
+                          <CheckboxesTypeActionable
+                            component={comp}
+                            updateComponentField={updateComponentField}
+                            popups={popups}
+                            activeMain={activeMain}
+                            setSelectedComponentId={setSelectedComponentId}
+                          />
+                        )}
+
+                        {comp.type === "select dropdown" && (
+                          <SelectTypeActionable
+                            component={comp}
+                            updateComponentField={updateComponentField}
+                            popups={popups}
+                            activeMain={activeMain}
+                            setSelectedComponentId={setSelectedComponentId}
+                          />
+                        )}
                       </div>
                     ))}
                   </div>
@@ -795,6 +827,36 @@ export default function PopupBuilder() {
                             activeMain={activeMain}
                             setSelectedComponentId={setSelectedComponentId}
                           />
+
+                          {comp.type === "radio buttons group" && (
+                            <RadioTypeActionable
+                              component={comp}
+                              updateComponentField={updateComponentField}
+                              popups={popups}
+                              activeMain={activeMain}
+                              setSelectedComponentId={setSelectedComponentId}
+                            />
+                          )}
+
+                          {comp.type === "checkboxes group" && (
+                            <CheckboxesTypeActionable
+                              component={comp}
+                              updateComponentField={updateComponentField}
+                              popups={popups}
+                              activeMain={activeMain}
+                              setSelectedComponentId={setSelectedComponentId}
+                            />
+                          )}
+
+                          {comp.type === "select dropdown" && (
+                            <SelectTypeActionable
+                              component={comp}
+                              updateComponentField={updateComponentField}
+                              popups={popups}
+                              activeMain={activeMain}
+                              setSelectedComponentId={setSelectedComponentId}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
