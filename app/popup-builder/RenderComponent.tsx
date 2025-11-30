@@ -112,38 +112,6 @@ export function RenderComponent(comp: any) {
           }
         ></iframe>
       );
-
-    // case "icon": {
-    //   const iconName = comp.content || "star";
-
-    //   const icons: Record<string, string> = {
-    //     star: "⭐",
-    //     heart: "❤️",
-    //     check: "✔️",
-    //     cross: "❌",
-    //     smile: "😊",
-    //     fire: "🔥",
-    //     warning: "⚠️",
-    //     tick: "🟢",
-    //     sun: "☀️",
-    //     moon: "🌙",
-    //   };
-
-    //   return (
-    //     <div
-    //       style={{
-    //         fontSize: comp.styles?.fontSize || "24px",
-    //         color: comp.styles?.color || "#000",
-    //         display: "inline-flex",
-    //         alignItems: "center",
-    //         justifyContent: "center",
-    //       }}
-    //     >
-    //       {icons[iconName] || "⭐"}
-    //     </div>
-    //   );
-    // }
-
     case "button":
       return (
         <button
@@ -163,7 +131,7 @@ export function RenderComponent(comp: any) {
     case "input":
       return (
         <input
-          placeholder={comp.placeholder || "Enter text"}
+          placeholder={comp.content || "Enter text"}
           style={{
             border: "1px solid #ccc",
             padding: "6px 8px",

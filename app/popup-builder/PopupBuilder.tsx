@@ -14,6 +14,8 @@ import { ComponentData, CompType, PopupData } from "./types";
 import { getDefaultStyles } from "./defaultStyleTypes";
 import { MdDelete } from "react-icons/md";
 import { POPUP_PRESETS } from "./popupPresets";
+import ButtonTypeActionable from "./ButtonTypeActionable";
+import InputTypeActionable from "./InputTypeActionable";
 
 export default function PopupBuilder() {
   const [popups, setPopups] = useState<PopupData[]>([
@@ -579,7 +581,6 @@ export default function PopupBuilder() {
     });
   };
 
-
   // --- render ---
   return (
     <div
@@ -647,7 +648,7 @@ export default function PopupBuilder() {
                       boxSizing: "border-box",
                     }}
                   >
-                    <p className="text-center p-2">{ele.id}</p>
+                    <p className="text-center p-2">{ele?.id}</p>
 
                     {activeMain.components.map((comp) => (
                       <div
@@ -693,39 +694,19 @@ export default function PopupBuilder() {
                         )}
 
                         {RenderComponent(comp)}
-
-                        {comp.type === "button" && (
-                          <select
-                            onChange={(e) =>
-                              setButtonAction(
-                                activeMain.id,
-                                comp.id,
-                                e.target.value
-                              )
-                            }
-                            data-no-drag="true"
-                            value={
-                              //@ts-ignore
-                              comp.action?.type === "closePopup"
-                                ? "__close"
-                                : comp.action?.type === "openPopup"
-                                ? comp.action.targetPopupId
-                                : ""
-                            }
-                            className="absolute -bottom-6 left-0 text-xs bg-white border border-gray-300 rounded"
-                          >
-                            <option value="">No Action</option>
-                            <option value="__close">Close Popup</option>
-                            {popups
-                              .flatMap((p) => [p, ...p.followUps])
-                              .filter((p) => p.id !== activeMain.id)
-                              .map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  Open {p.name}
-                                </option>
-                              ))}
-                          </select>
+                        {ButtonTypeActionable(
+                          comp,
+                          setButtonAction,
+                          activeMain,
+                          popups
                         )}
+                        <InputTypeActionable
+                          component={comp}
+                          updateComponentField={updateComponentField}
+                          popups={popups}
+                          activeMain={activeMain}
+                          setSelectedComponentId={setSelectedComponentId}
+                        />
                       </div>
                     ))}
                   </div>
@@ -757,7 +738,7 @@ export default function PopupBuilder() {
                         marginLeft: "1rem",
                       }}
                     >
-                      <p className="text-center p-2">{fu.id}</p>
+                      {/* <p className="text-center p-2">{fu.id}</p> */}
                       {fu.components.map((comp) => (
                         <div
                           key={comp.id}
@@ -801,33 +782,19 @@ export default function PopupBuilder() {
                           )}
 
                           {RenderComponent(comp)}
-                          {comp.type === "button" && (
-                            <select
-                              onChange={(e) =>
-                                setButtonAction(fu.id, comp.id, e.target.value)
-                              }
-                              value={
-                                //@ts-ignore
-                                comp.action?.type === "closePopup"
-                                  ? "__close"
-                                  : comp.action?.type === "openPopup"
-                                  ? comp.action.targetPopupId
-                                  : ""
-                              }
-                              className="absolute -bottom-6 left-0 text-xs bg-white border border-gray-300 rounded"
-                            >
-                              <option value="">No Action</option>
-                              <option value="__close">Close Popup</option>
-                              {popups
-                                .flatMap((p) => [p, ...p.followUps])
-                                .filter((p) => p.id !== fu.id)
-                                .map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    Open {p.name}
-                                  </option>
-                                ))}
-                            </select>
+                          {ButtonTypeActionable(
+                            comp,
+                            setButtonAction,
+                            activeMain,
+                            popups
                           )}
+                          <InputTypeActionable
+                            component={comp}
+                            updateComponentField={updateComponentField}
+                            popups={popups}
+                            activeMain={activeMain}
+                            setSelectedComponentId={setSelectedComponentId}
+                          />
                         </div>
                       ))}
                     </div>
