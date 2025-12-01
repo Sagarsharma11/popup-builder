@@ -1,3 +1,171 @@
+// // CheckboxesTypeActionable.tsx
+// "use client";
+
+// import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+// import { createPortal } from "react-dom";
+// import type { ComponentData, PopupData } from "./types";
+
+// type Rule = {
+//   conditionType: "equals" | "contains" | "regex" | "like";
+//   value: string;
+//   targetPopupId: string;
+// };
+
+// type Props = {
+//   component: ComponentData;
+//   updateComponentField: (field: string, value: any) => void;
+//   popups: PopupData[];
+//   activeMain: PopupData;
+//   setSelectedComponentId?: (id: string | null) => void;
+// };
+
+// export default function CheckboxesTypeActionable({
+//   component,
+//   updateComponentField,
+//   popups,
+//   activeMain,
+//   setSelectedComponentId,
+// }: Props) {
+//   if (!component || !updateComponentField || !popups || !activeMain) return null;
+//   if (component.type !== "checkboxes group") return null;
+
+//   const [open, setOpen] = useState(false);
+//   const firstInputRef = useRef<HTMLInputElement | null>(null);
+//   const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+//   const rules: Rule[] = (component.actionRules as Rule[]) ?? [];
+//   const operator = component.rulesOperator ?? "OR";
+
+//   const containingPopup = useMemo(() => {
+//     for (const p of popups) {
+//       if (p.components.some((c) => c.id === component.id)) return p;
+//       const fu = p.followUps.find((f) => f.components.some((c) => c.id === component.id));
+//       if (fu) return fu;
+//     }
+//     return activeMain;
+//   }, [component.id, popups, activeMain]);
+
+//   const targetOptions = useMemo(
+//     () => popups.flatMap((p) => [p, ...p.followUps]).filter((p) => p.id !== containingPopup.id),
+//     [popups, containingPopup.id]
+//   );
+
+//   const setRules = (nextRules: Rule[]) => updateComponentField("actionRules", nextRules);
+//   const setOperator = (op: "AND" | "OR") => updateComponentField("rulesOperator", op);
+//   const addRule = () => setRules([...rules, { conditionType: "equals", value: "", targetPopupId: "" }]);
+//   const updateRuleAt = (idx: number, patch: Partial<Rule>) => setRules(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+//   const removeRuleAt = (idx: number) => setRules(rules.filter((_, i) => i !== idx));
+
+//   const openModal = (e?: React.MouseEvent) => { e?.stopPropagation(); setSelectedComponentId?.(component.id); setOpen(true); };
+//   const closeModal = () => { setOpen(false); triggerRef.current?.focus(); };
+
+//   useLayoutEffect(() => {
+//     if (!open) return;
+//     const prev = document.body.style.overflow;
+//     document.body.style.overflow = "hidden";
+//     const t = setTimeout(() => firstInputRef.current?.focus?.(), 20);
+//     const onKey = (ev: KeyboardEvent) => ev.key === "Escape" && closeModal();
+//     window.addEventListener("keydown", onKey);
+//     return () => { clearTimeout(t); document.body.style.overflow = prev; window.removeEventListener("keydown", onKey); };
+//   }, [open]);
+
+//   const matchesRule = (rule: Rule, val: string) => {
+//     const v = (rule.value ?? "") + "";
+//     switch (rule.conditionType) {
+//       case "equals": return val === v;
+//       case "contains": return val.includes(v);
+//       case "like": {
+//         const escaped = v.replace(/[-/\\^$+?.()|[\]{}]/g, "\\$&");
+//         const pattern = "^" + escaped.replace(/%/g, ".*") + "$";
+//         try { return new RegExp(pattern, "i").test(val); } catch { return false; }
+//       }
+//       case "regex": try { return new RegExp(v).test(val); } catch { return false; }
+//       default: return false;
+//     }
+//   };
+
+//   const evaluateAndDispatch = (value: string) => {
+//     if (!rules || rules.length === 0) return;
+//     const results = rules.map((r) => matchesRule(r, value));
+//     const finalMatch = operator === "AND" ? results.every(Boolean) : results.some(Boolean);
+//     if (!finalMatch) return;
+//     const idx = operator === "OR" ? results.findIndex(Boolean) : 0;
+//     const matched = rules[idx] ?? rules[0];
+//     if (!matched) return;
+//     if (matched.targetPopupId === "__close") {
+//       window.dispatchEvent(new CustomEvent("closePopupFromInput", { detail: { sourceCompId: component.id } }));
+//     } else {
+//       window.dispatchEvent(new CustomEvent("openPopupFromInput", { detail: { targetPopupId: matched.targetPopupId } }));
+//     }
+//   };
+
+//   const trigger = (
+//     <button ref={triggerRef} data-no-drag="true" onClick={(e) => { e.stopPropagation(); setSelectedComponentId?.(component.id); setOpen(true); }} title="Edit checkbox action rules" className="absolute -bottom-6 left-0 text-xs bg-white border border-gray-300 rounded px-2 py-0.5 shadow" style={{ zIndex: 9999 }}>Rules</button>
+//   );
+
+//   const modal = open ? createPortal(
+//     <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 99999 }} onMouseDown={closeModal}>
+//       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
+//       <div role="document" onMouseDown={(e) => e.stopPropagation()} style={{ position: "relative", zIndex: 100000, width: 720, maxWidth: "96%", maxHeight: "86vh", overflow: "auto", background: "#fff", borderRadius: 8, padding: 16 }}>
+//         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+//           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+//             <h3 style={{ fontSize: 18, margin: 0 , color:"#333"}}>Checkbox Action Rules</h3>
+//             <div style={{ display: "flex", alignItems: "center", gap: 6, color:"#333" }}>
+//               <label style={{ fontSize: 12 }}>Match</label>
+//               <select value={operator} onChange={(e) => setOperator(e.target.value === "AND" ? "AND" : "OR")} data-no-drag="true" style={{ padding: "6px 8px", borderRadius: 6 }}>
+//                 <option value="OR">Any (OR)</option>
+//                 <option value="AND">All (AND)</option>
+//               </select>
+//             </div>
+//           </div>
+//           <div><button onClick={closeModal}>Close</button></div>
+//         </div>
+
+//         <p style={{ color: "#555" }}>Add rules to make this checkbox group actionable. The engine receives checked values joined by commas (e.g. "a,b").</p>
+
+//         <div style={{ marginBottom: 12 }}>
+//           <button onClick={(e) => { e.stopPropagation(); addRule(); }} data-no-drag="true" style={{ padding: "6px 10px", color:"#333" }}>+ Add Rule</button>
+//         </div>
+
+//         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+//           {rules.length === 0 && <div style={{ color: "#777" }}>No rules yet.</div>}
+//           {rules.map((rule, idx) => (
+//             <div key={idx} style={{ border: "1px solid #e5e7eb", borderRadius: 6, padding: 12 }}>
+//               <div style={{ display: "flex", gap: 8, marginBottom: 8 , color:"#333"}}>
+//                 <select value={rule.conditionType} onChange={(e) => updateRuleAt(idx, { conditionType: e.target.value as Rule["conditionType"] })} style={{ padding: 6, borderRadius: 6 }}>
+//                   <option value="equals">Equals</option>
+//                   <option value="contains">Contains</option>
+//                   <option value="like">Like</option>
+//                   <option value="regex">Regex</option>
+//                 </select>
+//                 <input ref={idx === 0 ? firstInputRef : undefined} type="text" placeholder="value / pattern" value={rule.value} onChange={(e) => updateRuleAt(idx, { value: e.target.value })} style={{ flex: 1, padding: 6, borderRadius: 6, border: "1px solid #ccc" }} />
+//               </div>
+
+//               <div style={{ display: "flex", gap: 8, alignItems: "center", color:"#333" }}>
+//                 <select value={rule.targetPopupId} onChange={(e) => updateRuleAt(idx, { targetPopupId: e.target.value })} style={{ flex: 1, padding: 6, borderRadius: 6 }}>
+//                   <option value="">Choose target popup</option>
+//                   <option value="__close">Close popup</option>
+//                   {targetOptions.map((p) => (<option key={p.id} value={p.id}>Open {p.name}</option>))}
+//                 </select>
+//                 <button onClick={(ev) => { ev.stopPropagation(); removeRuleAt(idx); }} style={{ color: "#c00" }}>Delete</button>
+//               </div>
+
+//               <div style={{ color: "#777", fontSize: 12, marginTop: 8 }}>Tip: "like" supports % wildcard — regex uses JS RegExp.</div>
+//             </div>
+//           ))}
+//         </div>
+//       </div>
+//     </div>, document.body) : null;
+
+//   return (
+//     <>
+//       {trigger}
+//       {modal}
+//     </>
+//   );
+// }
+
+
 // CheckboxesTypeActionable.tsx
 "use client";
 
@@ -9,6 +177,8 @@ type Rule = {
   conditionType: "equals" | "contains" | "regex" | "like";
   value: string;
   targetPopupId: string;
+  // joiner that connects this rule to the NEXT rule (if any)
+  joinWithNext?: "AND" | "OR";
 };
 
 type Props = {
@@ -34,7 +204,9 @@ export default function CheckboxesTypeActionable({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const rules: Rule[] = (component.actionRules as Rule[]) ?? [];
-  const operator = component.rulesOperator ?? "OR";
+  // legacy: component.rulesOperator may exist; we won't use global operator
+  // but keep it for backward compatibility
+  const legacyOperator = component.rulesOperator ?? "OR";
 
   const containingPopup = useMemo(() => {
     for (const p of popups) {
@@ -51,10 +223,21 @@ export default function CheckboxesTypeActionable({
   );
 
   const setRules = (nextRules: Rule[]) => updateComponentField("actionRules", nextRules);
-  const setOperator = (op: "AND" | "OR") => updateComponentField("rulesOperator", op);
-  const addRule = () => setRules([...rules, { conditionType: "equals", value: "", targetPopupId: "" }]);
-  const updateRuleAt = (idx: number, patch: Partial<Rule>) => setRules(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
-  const removeRuleAt = (idx: number) => setRules(rules.filter((_, i) => i !== idx));
+
+  // ensure previous rule has a joiner when adding a new rule
+  const addRule = () => {
+    const nextRules = rules.length
+      ? rules.map((r, i) => (i === rules.length - 1 ? { ...r, joinWithNext: r.joinWithNext ?? "OR" } : r))
+      : rules.slice();
+    nextRules.push({ conditionType: "equals", value: "", targetPopupId: "", joinWithNext: undefined });
+    setRules(nextRules);
+  };
+
+  const updateRuleAt = (idx: number, patch: Partial<Rule>) =>
+    setRules(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+
+  const removeRuleAt = (idx: number) =>
+    setRules(rules.filter((_, i) => i !== idx));
 
   const openModal = (e?: React.MouseEvent) => { e?.stopPropagation(); setSelectedComponentId?.(component.id); setOpen(true); };
   const closeModal = () => { setOpen(false); triggerRef.current?.focus(); };
@@ -84,13 +267,45 @@ export default function CheckboxesTypeActionable({
     }
   };
 
+  // fold-left evaluation using per-rule joiners.
+  // If no joiners present we fall back to legacyOperator === "AND"|"OR".
   const evaluateAndDispatch = (value: string) => {
     if (!rules || rules.length === 0) return;
+
+    // compute boolean results for each rule
     const results = rules.map((r) => matchesRule(r, value));
-    const finalMatch = operator === "AND" ? results.every(Boolean) : results.some(Boolean);
-    if (!finalMatch) return;
-    const idx = operator === "OR" ? results.findIndex(Boolean) : 0;
-    const matched = rules[idx] ?? rules[0];
+    if (results.length === 0) return;
+
+    // if there's only one rule, handle it simply
+    if (results.length === 1) {
+      if (!results[0]) return;
+      const matched = rules[0];
+      dispatchMatched(matched);
+      return;
+    }
+
+    // fold-left using joinWithNext on each rule (joiner belongs to the rule, joining it with the next)
+    let acc = results[0];
+    for (let i = 0; i < results.length - 1; i++) {
+      const joiner = rules[i].joinWithNext ?? "OR";
+      const nextVal = results[i + 1];
+      if (joiner === "AND") acc = acc && nextVal;
+      else acc = acc || nextVal;
+    }
+
+    if (!acc) return;
+
+    // determine which rule is considered "the matched one"
+    // if any rule individually matched and we used OR semantics, prefer first matching rule
+    // if all matched by AND, prefer the first rule (index 0)
+    // For mixed joiners we pick the first rule that individually matched (consistent and predictable)
+    let matchedRuleIndex = results.findIndex(Boolean);
+    if (matchedRuleIndex === -1) matchedRuleIndex = 0;
+    const matched = rules[matchedRuleIndex] ?? rules[0];
+    dispatchMatched(matched);
+  };
+
+  const dispatchMatched = (matched: Rule) => {
     if (!matched) return;
     if (matched.targetPopupId === "__close") {
       window.dispatchEvent(new CustomEvent("closePopupFromInput", { detail: { sourceCompId: component.id } }));
@@ -111,8 +326,8 @@ export default function CheckboxesTypeActionable({
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <h3 style={{ fontSize: 18, margin: 0 , color:"#333"}}>Checkbox Action Rules</h3>
             <div style={{ display: "flex", alignItems: "center", gap: 6, color:"#333" }}>
-              <label style={{ fontSize: 12 }}>Match</label>
-              <select value={operator} onChange={(e) => setOperator(e.target.value === "AND" ? "AND" : "OR")} data-no-drag="true" style={{ padding: "6px 8px", borderRadius: 6 }}>
+              <label style={{ fontSize: 12 }}>Legacy</label>
+              <select value={legacyOperator} onChange={() => { /* keep to preserve existing value if needed */ }} data-no-drag="true" style={{ padding: "6px 8px", borderRadius: 6, opacity: 0.6 }} disabled>
                 <option value="OR">Any (OR)</option>
                 <option value="AND">All (AND)</option>
               </select>
@@ -121,7 +336,7 @@ export default function CheckboxesTypeActionable({
           <div><button onClick={closeModal}>Close</button></div>
         </div>
 
-        <p style={{ color: "#555" }}>Add rules to make this checkbox group actionable. The engine receives checked values joined by commas (e.g. "a,b").</p>
+        <p style={{ color: "#555" }}>Add rules to make this checkbox group actionable. The engine receives checked values joined by commas (e.g. "a,b"). Use the operator dropdown between rules to join them with AND/OR.</p>
 
         <div style={{ marginBottom: 12 }}>
           <button onClick={(e) => { e.stopPropagation(); addRule(); }} data-no-drag="true" style={{ padding: "6px 10px", color:"#333" }}>+ Add Rule</button>
@@ -149,6 +364,22 @@ export default function CheckboxesTypeActionable({
                 </select>
                 <button onClick={(ev) => { ev.stopPropagation(); removeRuleAt(idx); }} style={{ color: "#c00" }}>Delete</button>
               </div>
+
+              {/* joiner selector shown AFTER the rule if it's not the last rule */}
+              {idx < rules.length - 1 && (
+                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, color: "#666" }}>Then</span>
+                  <select
+                    value={rule.joinWithNext ?? "OR"}
+                    onChange={(e) => updateRuleAt(idx, { joinWithNext: e.target.value === "AND" ? "AND" : "OR" })}
+                    data-no-drag="true"
+                    style={{ padding: 6, borderRadius: 6 }}
+                  >
+                    <option value="OR">OR</option>
+                    <option value="AND">AND</option>
+                  </select>
+                </div>
+              )}
 
               <div style={{ color: "#777", fontSize: 12, marginTop: 8 }}>Tip: "like" supports % wildcard — regex uses JS RegExp.</div>
             </div>

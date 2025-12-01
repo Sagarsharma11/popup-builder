@@ -1,3 +1,348 @@
+// // SelectTypeActionable.tsx
+// "use client";
+
+// import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+// import { createPortal } from "react-dom";
+// import type { ComponentData, PopupData } from "./types";
+
+// type Rule = {
+//   conditionType: "equals" | "contains" | "regex" | "like";
+//   value: string;
+//   targetPopupId: string;
+// };
+
+// type Props = {
+//   component: ComponentData;
+//   updateComponentField: (field: string, value: any) => void;
+//   popups: PopupData[];
+//   activeMain: PopupData;
+//   setSelectedComponentId?: (id: string | null) => void;
+// };
+
+// export default function SelectTypeActionable({
+//   component,
+//   updateComponentField,
+//   popups,
+//   activeMain,
+//   setSelectedComponentId,
+// }: Props) {
+//   if (!component || !updateComponentField || !popups || !activeMain)
+//     return null;
+//   if (component.type !== "select dropdown") return null;
+
+//   const [open, setOpen] = useState(false);
+//   const firstInputRef = useRef<HTMLInputElement | null>(null);
+//   const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+//   const rules: Rule[] = (component.actionRules as Rule[]) ?? [];
+//   const operator = component.rulesOperator ?? "OR";
+
+//   const containingPopup = useMemo(() => {
+//     for (const p of popups) {
+//       if (p.components.some((c) => c.id === component.id)) return p;
+//       const fu = p.followUps.find((f) =>
+//         f.components.some((c) => c.id === component.id)
+//       );
+//       if (fu) return fu;
+//     }
+//     return activeMain;
+//   }, [component.id, popups, activeMain]);
+
+//   const targetOptions = useMemo(
+//     () =>
+//       popups
+//         .flatMap((p) => [p, ...p.followUps])
+//         .filter((p) => p.id !== containingPopup.id),
+//     [popups, containingPopup.id]
+//   );
+
+//   const setRules = (nextRules: Rule[]) =>
+//     updateComponentField("actionRules", nextRules);
+//   const setOperator = (op: "AND" | "OR") =>
+//     updateComponentField("rulesOperator", op);
+//   const addRule = () =>
+//     setRules([
+//       ...rules,
+//       { conditionType: "equals", value: "", targetPopupId: "" },
+//     ]);
+//   const updateRuleAt = (idx: number, patch: Partial<Rule>) =>
+//     setRules(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+//   const removeRuleAt = (idx: number) =>
+//     setRules(rules.filter((_, i) => i !== idx));
+
+//   const openModal = (e?: React.MouseEvent) => {
+//     e?.stopPropagation();
+//     setSelectedComponentId?.(component.id);
+//     setOpen(true);
+//   };
+//   const closeModal = () => {
+//     setOpen(false);
+//     triggerRef.current?.focus();
+//   };
+
+//   useLayoutEffect(() => {
+//     if (!open) return;
+//     const prev = document.body.style.overflow;
+//     document.body.style.overflow = "hidden";
+//     const t = setTimeout(() => firstInputRef.current?.focus?.(), 20);
+//     const onKey = (ev: KeyboardEvent) => ev.key === "Escape" && closeModal();
+//     window.addEventListener("keydown", onKey);
+//     return () => {
+//       clearTimeout(t);
+//       document.body.style.overflow = prev;
+//       window.removeEventListener("keydown", onKey);
+//     };
+//   }, [open]);
+
+//   const matchesRule = (rule: Rule, val: string) => {
+//     const v = (rule.value ?? "") + "";
+//     switch (rule.conditionType) {
+//       case "equals":
+//         return val === v;
+//       case "contains":
+//         return val.includes(v);
+//       case "like": {
+//         const escaped = v.replace(/[-/\\^$+?.()|[\]{}]/g, "\\$&");
+//         const pattern = "^" + escaped.replace(/%/g, ".*") + "$";
+//         try {
+//           return new RegExp(pattern, "i").test(val);
+//         } catch {
+//           return false;
+//         }
+//       }
+//       case "regex":
+//         try {
+//           return new RegExp(v).test(val);
+//         } catch {
+//           return false;
+//         }
+//       default:
+//         return false;
+//     }
+//   };
+
+//   const evaluateAndDispatch = (value: string) => {
+//     if (!rules || rules.length === 0) return;
+//     const results = rules.map((r) => matchesRule(r, value));
+//     const finalMatch =
+//       operator === "AND" ? results.every(Boolean) : results.some(Boolean);
+//     if (!finalMatch) return;
+//     const idx = operator === "OR" ? results.findIndex(Boolean) : 0;
+//     const matched = rules[idx] ?? rules[0];
+//     if (!matched) return;
+//     if (matched.targetPopupId === "__close") {
+//       window.dispatchEvent(
+//         new CustomEvent("closePopupFromInput", {
+//           detail: { sourceCompId: component.id },
+//         })
+//       );
+//     } else {
+//       window.dispatchEvent(
+//         new CustomEvent("openPopupFromInput", {
+//           detail: { targetPopupId: matched.targetPopupId },
+//         })
+//       );
+//     }
+//   };
+
+//   const trigger = (
+//     <button
+//       ref={triggerRef}
+//       data-no-drag="true"
+//       onClick={(e) => {
+//         e.stopPropagation();
+//         setOpen(true);
+//         setSelectedComponentId?.(component.id);
+//       }}
+//       title="Edit select action rules"
+//       className="absolute -bottom-6 left-0 text-xs bg-white border border-gray-300 rounded px-2 py-0.5 shadow"
+//       style={{ zIndex: 9999 }}
+//     >
+//       Rules
+//     </button>
+//   );
+
+//   const modal = open
+//     ? createPortal(
+//         <div
+//           className="fixed inset-0 flex items-center justify-center"
+//           style={{ zIndex: 99999 }}
+//           onMouseDown={closeModal}
+//         >
+//           <div
+//             style={{
+//               position: "absolute",
+//               inset: 0,
+//               background: "rgba(0,0,0,0.4)",
+//             }}
+//           />
+//           <div
+//             role="document"
+//             onMouseDown={(e) => e.stopPropagation()}
+//             style={{
+//               position: "relative",
+//               zIndex: 100000,
+//               width: 720,
+//               maxWidth: "96%",
+//               maxHeight: "86vh",
+//               overflow: "auto",
+//               background: "#fff",
+//               borderRadius: 8,
+//               padding: 16,
+//             }}
+//           >
+//             <div
+//               style={{
+//                 display: "flex",
+//                 justifyContent: "space-between",
+//                 alignItems: "center",
+//                 marginBottom: 12,
+//               }}
+//             >
+//               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+//                 <h3 style={{ fontSize: 18, margin: 0, color: "#333" }}>
+//                   Select Action Rules
+//                 </h3>
+//                 <div
+//                   style={{
+//                     display: "flex",
+//                     alignItems: "center",
+//                     gap: 6,
+//                     color: "#333",
+//                   }}
+//                 >
+//                   <label style={{ fontSize: 12 }}>Match</label>
+//                   <select
+//                     value={operator}
+//                     onChange={(e) =>
+//                       setOperator(e.target.value === "AND" ? "AND" : "OR")
+//                     }
+//                     data-no-drag="true"
+//                     style={{ padding: "6px 8px", borderRadius: 6 }}
+//                   >
+//                     <option value="OR">Any (OR)</option>
+//                     <option value="AND">All (AND)</option>
+//                   </select>
+//                 </div>
+//               </div>
+//               <div>
+//                 <button onClick={closeModal}>Close</button>
+//               </div>
+//             </div>
+
+//             <p style={{ color: "#555" }}>
+//               Add rules to make this select actionable.
+//             </p>
+
+//             <div style={{ marginBottom: 12 }}>
+//               <button
+//                 onClick={(e) => {
+//                   e.stopPropagation();
+//                   addRule();
+//                 }}
+//                 data-no-drag="true"
+//                 style={{ padding: "6px 10px" , color:"#333"}}
+//               >
+//                 + Add Rule
+//               </button>
+//             </div>
+
+//             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+//               {rules.length === 0 && (
+//                 <div style={{ color: "#777" }}>No rules yet.</div>
+//               )}
+//               {rules.map((rule, idx) => (
+//                 <div
+//                   key={idx}
+//                   style={{
+//                     border: "1px solid #e5e7eb",
+//                     borderRadius: 6,
+//                     padding: 12, color:"#333"
+//                   }}
+//                 >
+//                   <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+//                     <select
+//                       value={rule.conditionType}
+//                       onChange={(e) =>
+//                         updateRuleAt(idx, {
+//                           conditionType: e.target
+//                             .value as Rule["conditionType"],
+//                         })
+//                       }
+//                       style={{ padding: 6, borderRadius: 6 }}
+//                     >
+//                       <option value="equals">Equals</option>
+//                       <option value="contains">Contains</option>
+//                       <option value="like">Like</option>
+//                       <option value="regex">Regex</option>
+//                     </select>
+//                     <input
+//                       ref={idx === 0 ? firstInputRef : undefined}
+//                       type="text"
+//                       placeholder="value / pattern"
+//                       value={rule.value}
+//                       onChange={(e) =>
+//                         updateRuleAt(idx, { value: e.target.value })
+//                       }
+//                       style={{
+//                         flex: 1,
+//                         padding: 6,
+//                         borderRadius: 6,
+//                         border: "1px solid #ccc",
+//                       }}
+//                     />
+//                   </div>
+
+//                   <div
+//                     style={{ display: "flex", gap: 8, alignItems: "center" }}
+//                   >
+//                     <select
+//                       value={rule.targetPopupId}
+//                       onChange={(e) =>
+//                         updateRuleAt(idx, { targetPopupId: e.target.value })
+//                       }
+//                       style={{ flex: 1, padding: 6, borderRadius: 6 }}
+//                     >
+//                       <option value="">Choose target popup</option>
+//                       <option value="__close">Close popup</option>
+//                       {targetOptions.map((p) => (
+//                         <option key={p.id} value={p.id}>
+//                           Open {p.name}
+//                         </option>
+//                       ))}
+//                     </select>
+//                     <button
+//                       onClick={(ev) => {
+//                         ev.stopPropagation();
+//                         removeRuleAt(idx);
+//                       }}
+//                       style={{ color: "#c00" }}
+//                     >
+//                       Delete
+//                     </button>
+//                   </div>
+
+//                   <div style={{ color: "#777", fontSize: 12, marginTop: 8 }}>
+//                     Tip: "like" supports % wildcard — regex uses JS RegExp.
+//                   </div>
+//                 </div>
+//               ))}
+//             </div>
+//           </div>
+//         </div>,
+//         document.body
+//       )
+//     : null;
+
+//   return (
+//     <>
+//       {trigger}
+//       {modal}
+//     </>
+//   );
+// }
+
+
 // SelectTypeActionable.tsx
 "use client";
 
@@ -9,6 +354,8 @@ type Rule = {
   conditionType: "equals" | "contains" | "regex" | "like";
   value: string;
   targetPopupId: string;
+  // operator connecting THIS rule to the NEXT rule (ignored for last)
+  operator?: "AND" | "OR";
 };
 
 type Props = {
@@ -34,8 +381,13 @@ export default function SelectTypeActionable({
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
-  const rules: Rule[] = (component.actionRules as Rule[]) ?? [];
-  const operator = component.rulesOperator ?? "OR";
+  // normalize rules so UI can assume fields exist
+  const rules: Rule[] = ((component.actionRules as Rule[]) ?? []).map((r) => ({
+    conditionType: r.conditionType ?? "equals",
+    value: r.value ?? "",
+    targetPopupId: r.targetPopupId ?? "",
+    operator: r.operator, // may be undefined for older data
+  }));
 
   const containingPopup = useMemo(() => {
     for (const p of popups) {
@@ -46,7 +398,8 @@ export default function SelectTypeActionable({
       if (fu) return fu;
     }
     return activeMain;
-  }, [component.id, popups, activeMain]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [component.id, popups]);
 
   const targetOptions = useMemo(
     () =>
@@ -58,17 +411,21 @@ export default function SelectTypeActionable({
 
   const setRules = (nextRules: Rule[]) =>
     updateComponentField("actionRules", nextRules);
-  const setOperator = (op: "AND" | "OR") =>
-    updateComponentField("rulesOperator", op);
+
+  // Add rule — default operator for new rule is OR
   const addRule = () =>
     setRules([
       ...rules,
-      { conditionType: "equals", value: "", targetPopupId: "" },
+      { conditionType: "equals", value: "", targetPopupId: "", operator: "OR" },
     ]);
+
   const updateRuleAt = (idx: number, patch: Partial<Rule>) =>
     setRules(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
-  const removeRuleAt = (idx: number) =>
-    setRules(rules.filter((_, i) => i !== idx));
+
+  const removeRuleAt = (idx: number) => {
+    const next = rules.filter((_, i) => i !== idx);
+    setRules(next);
+  };
 
   const openModal = (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -121,24 +478,42 @@ export default function SelectTypeActionable({
     }
   };
 
+  // Evaluate rules left-to-right using each rule.operator to combine with next value.
+  // Returns true if overall match; also returns index-of-matched-rule for OR behavior.
+  const evaluateRules = (value: string) => {
+    if (!rules || rules.length === 0) return { match: false, matchedIndex: -1 };
+
+    const bools = rules.map((r) => matchesRule(r, value));
+    // fold left-to-right
+    let acc = bools[0];
+    for (let i = 0; i < bools.length - 1; i++) {
+      const op = rules[i].operator ?? "OR";
+      const next = bools[i + 1];
+      if (op === "AND") acc = acc && next;
+      else acc = acc || next;
+    }
+    // find matched index for OR-style behavior (first true)
+    const firstTrue = bools.findIndex(Boolean);
+    return { match: acc, matchedIndex: firstTrue };
+  };
+
+  // dispatch events / actions when select value changes in runtime
   const evaluateAndDispatch = (value: string) => {
-    if (!rules || rules.length === 0) return;
-    const results = rules.map((r) => matchesRule(r, value));
-    const finalMatch =
-      operator === "AND" ? results.every(Boolean) : results.some(Boolean);
-    if (!finalMatch) return;
-    const idx = operator === "OR" ? results.findIndex(Boolean) : 0;
+    const { match, matchedIndex } = evaluateRules(value);
+    if (!match) return;
+    // if folded operator produced true via ANDs, matchedIndex may be 0 — choose matchedIndex if available else 0
+    const idx = matchedIndex >= 0 ? matchedIndex : 0;
     const matched = rules[idx] ?? rules[0];
     if (!matched) return;
     if (matched.targetPopupId === "__close") {
       window.dispatchEvent(
-        new CustomEvent("closePopupFromInput", {
+        new CustomEvent("closePopupFromSelect", {
           detail: { sourceCompId: component.id },
         })
       );
     } else {
       window.dispatchEvent(
-        new CustomEvent("openPopupFromInput", {
+        new CustomEvent("openPopupFromSelect", {
           detail: { targetPopupId: matched.targetPopupId },
         })
       );
@@ -203,27 +578,6 @@ export default function SelectTypeActionable({
                 <h3 style={{ fontSize: 18, margin: 0, color: "#333" }}>
                   Select Action Rules
                 </h3>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    color: "#333",
-                  }}
-                >
-                  <label style={{ fontSize: 12 }}>Match</label>
-                  <select
-                    value={operator}
-                    onChange={(e) =>
-                      setOperator(e.target.value === "AND" ? "AND" : "OR")
-                    }
-                    data-no-drag="true"
-                    style={{ padding: "6px 8px", borderRadius: 6 }}
-                  >
-                    <option value="OR">Any (OR)</option>
-                    <option value="AND">All (AND)</option>
-                  </select>
-                </div>
               </div>
               <div>
                 <button onClick={closeModal}>Close</button>
@@ -231,7 +585,8 @@ export default function SelectTypeActionable({
             </div>
 
             <p style={{ color: "#555" }}>
-              Add rules to make this select actionable.
+              Add rules to make this select actionable. Connect each rule to the
+              next with AND / OR.
             </p>
 
             <div style={{ marginBottom: 12 }}>
@@ -241,92 +596,104 @@ export default function SelectTypeActionable({
                   addRule();
                 }}
                 data-no-drag="true"
-                style={{ padding: "6px 10px" , color:"#333"}}
+                style={{ padding: "6px 10px", color: "#333" }}
               >
                 + Add Rule
               </button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {rules.length === 0 && (
-                <div style={{ color: "#777" }}>No rules yet.</div>
-              )}
-              {rules.map((rule, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 6,
-                    padding: 12, color:"#333"
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                    <select
-                      value={rule.conditionType}
-                      onChange={(e) =>
-                        updateRuleAt(idx, {
-                          conditionType: e.target
-                            .value as Rule["conditionType"],
-                        })
-                      }
-                      style={{ padding: 6, borderRadius: 6 }}
-                    >
-                      <option value="equals">Equals</option>
-                      <option value="contains">Contains</option>
-                      <option value="like">Like</option>
-                      <option value="regex">Regex</option>
-                    </select>
-                    <input
-                      ref={idx === 0 ? firstInputRef : undefined}
-                      type="text"
-                      placeholder="value / pattern"
-                      value={rule.value}
-                      onChange={(e) =>
-                        updateRuleAt(idx, { value: e.target.value })
-                      }
+              {rules.length === 0 && <div style={{ color: "#777" }}>No rules yet.</div>}
+
+              {rules.map((rule, idx) => {
+                const isLast = idx === rules.length - 1;
+                return (
+                  <div key={idx} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div
                       style={{
-                        flex: 1,
-                        padding: 6,
+                        border: "1px solid #e5e7eb",
                         borderRadius: 6,
-                        border: "1px solid #ccc",
+                        padding: 12,
+                        color: "#333",
+                        background: "#fff",
                       }}
-                    />
-                  </div>
-
-                  <div
-                    style={{ display: "flex", gap: 8, alignItems: "center" }}
-                  >
-                    <select
-                      value={rule.targetPopupId}
-                      onChange={(e) =>
-                        updateRuleAt(idx, { targetPopupId: e.target.value })
-                      }
-                      style={{ flex: 1, padding: 6, borderRadius: 6 }}
                     >
-                      <option value="">Choose target popup</option>
-                      <option value="__close">Close popup</option>
-                      {targetOptions.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          Open {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        removeRuleAt(idx);
-                      }}
-                      style={{ color: "#c00" }}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                        <select
+                          value={rule.conditionType}
+                          onChange={(e) =>
+                            updateRuleAt(idx, {
+                              conditionType: e.target.value as Rule["conditionType"],
+                            })
+                          }
+                          style={{ padding: 6, borderRadius: 6 }}
+                        >
+                          <option value="equals">Equals</option>
+                          <option value="contains">Contains</option>
+                          <option value="like">Like</option>
+                          <option value="regex">Regex</option>
+                        </select>
+                        <input
+                          ref={idx === 0 ? firstInputRef : undefined}
+                          type="text"
+                          placeholder="value / pattern"
+                          value={rule.value}
+                          onChange={(e) => updateRuleAt(idx, { value: e.target.value })}
+                          style={{
+                            flex: 1,
+                            padding: 6,
+                            borderRadius: 6,
+                            border: "1px solid #ccc",
+                          }}
+                        />
+                      </div>
 
-                  <div style={{ color: "#777", fontSize: 12, marginTop: 8 }}>
-                    Tip: "like" supports % wildcard — regex uses JS RegExp.
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <select
+                          value={rule.targetPopupId}
+                          onChange={(e) => updateRuleAt(idx, { targetPopupId: e.target.value })}
+                          style={{ flex: 1, padding: 6, borderRadius: 6 }}
+                        >
+                          <option value="">Choose target popup</option>
+                          <option value="__close">Close popup</option>
+                          {targetOptions.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              Open {p.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            removeRuleAt(idx);
+                          }}
+                          style={{ color: "#c00" }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+
+                      <div style={{ color: "#777", fontSize: 12, marginTop: 8 }}>
+                        Tip: "like" supports % wildcard — regex uses JS RegExp.
+                      </div>
+                    </div>
+
+                    {!isLast && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
+                        <div style={{ color: "#666", fontSize: 12 }}>Then</div>
+                        <select
+                          value={rule.operator ?? "OR"}
+                          onChange={(e) => updateRuleAt(idx, { operator: e.target.value === "AND" ? "AND" : "OR" })}
+                          style={{ padding: "6px 8px", borderRadius: 6 }}
+                        >
+                          <option value="OR">OR</option>
+                          <option value="AND">AND</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>,

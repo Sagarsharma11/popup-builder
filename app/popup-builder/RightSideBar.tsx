@@ -35,7 +35,7 @@ const ICONS: Record<string, React.ReactNode> = {
   input: <MdInput size={22} />,
 
   // NEW COMPONENT TYPES
-  "radio buttons group": <MdRadioButtonUnchecked size={22} />,
+  "radio buttons group": <MdRadioButtonChecked size={22} />,
   "checkboxes group": <MdCheckBoxOutlineBlank size={22} />,
   "select dropdown": <MdArrowDropDownCircle size={22} />,
 };

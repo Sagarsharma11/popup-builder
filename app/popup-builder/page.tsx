@@ -2,10 +2,10 @@
 import React from 'react'
 import PopupBuilder from './PopupBuilder'
 
-const page = () => {
+const BuilderPage = () => {
   return (
     <PopupBuilder />
   )
 }
 
-export default page
+export default BuilderPage

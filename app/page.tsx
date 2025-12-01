@@ -1,9 +1,9 @@
 import React from 'react'
-import { PopupBuilder } from './PopupBuilder'
+import BuilderPage from './popup-builder/page'
 
 const page = () => {
   return (
-    <PopupBuilder/>
+    <BuilderPage/>
   )
 }
 
