@@ -1,7 +1,7 @@
 import React from "react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ShowPopupJSON = ({ jsonData, onClose }:any) => {
+const ShowPopupJSON = ({ jsonData, onClose }: any) => {
   if (!jsonData) return null;
 
   const prettyJson = JSON.stringify(jsonData, null, 2);
@@ -25,7 +25,7 @@ const ShowPopupJSON = ({ jsonData, onClose }:any) => {
       <div
         style={{
           background: "white",
-          padding: "20px",
+          padding: "8px",
           borderRadius: "10px",
           width: "80%",
           maxWidth: "800px",
@@ -34,22 +34,11 @@ const ShowPopupJSON = ({ jsonData, onClose }:any) => {
           userSelect: "text", // 🔥 Allow selecting inside modal
         }}
       >
-        <pre
-          style={{
-            whiteSpace: "pre-wrap",
-            fontSize: "14px",
-            userSelect: "text", // 🔥 Very important for copying
-          }}
-        >
-          {prettyJson}
-        </pre>
-
-        <div style={{ marginTop: "20px", textAlign: "right" }}>
+        <div style={{ textAlign: "right" }}>
           <button
             onClick={onClose}
             style={{
-              padding: "8px 16px",
-              marginRight: "10px",
+              padding: "4px 8px",
               background: "#3498db",
               color: "white",
               border: "none",
@@ -59,21 +48,16 @@ const ShowPopupJSON = ({ jsonData, onClose }:any) => {
           >
             Close
           </button>
-
-          <button
-            onClick={onClose}
-            style={{
-              padding: "8px 16px",
-              background: "#e74c3c",
-              color: "white",
-              border: "none",
-              borderRadius: "5px",
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
         </div>
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            fontSize: "14px",
+            userSelect: "text", // 🔥 Very important for copying
+          }}
+        >
+          {prettyJson}
+        </pre>
       </div>
     </div>
   );

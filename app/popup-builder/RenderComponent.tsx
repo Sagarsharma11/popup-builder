@@ -1,6 +1,3 @@
-// RenderComponent.tsx
-import React from "react";
-
 /* ---------- helper renderer ---------- */
 export function RenderComponent(comp: any) {
   // helper: safely test a single rule against a value
@@ -183,39 +180,72 @@ export function RenderComponent(comp: any) {
         <button
           style={{
             border: "none",
-            padding: "8px 16px",
+            padding: "4px 8px",
             backgroundColor: comp.styles?.backgroundColor || "#2563eb",
             color: comp.styles?.color || "#fff",
             borderRadius: "6px",
             cursor: "pointer",
           }}
         >
-          {typeof comp.label === "string"
-            ? comp.label
-            : comp.label?.label ?? "Button"}
+          {comp.content || "Click Me"}
         </button>
       );
 
     case "input":
       return (
-        <input
-          placeholder={comp.content || "Enter text"}
-          defaultValue={comp.value ?? ""}
-          onChange={(e) => {
-            const val = e.target.value ?? "";
-            try {
-              evaluateRulesAndDispatch(val);
-            } catch (err) {
-              console.warn("Error evaluating input rules", err);
-            }
-          }}
-          style={{
-            border: "1px solid #ccc",
-            padding: "6px 8px",
-            borderRadius: "4px",
-          }}
-        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={{ userSelect: "none" }}>{comp.content}</label>
+
+          <input
+            data-no-drag="true" // <- prevents parent drag-start
+            onMouseDown={(e) => e.stopPropagation()} // <- stop bubbling to ancestor handlers
+            onClick={(e) => e.stopPropagation()} // <- extra safeguard
+            type={comp.inputType || "text"}
+            placeholder={comp.content || "Enter text"}
+            defaultValue={comp.value ?? ""}
+            onChange={(e) => {
+              const val = e.target.value ?? "";
+              try {
+                evaluateRulesAndDispatch(val);
+              } catch (err) {
+                console.warn("Error evaluating input rules", err);
+              }
+            }}
+            style={{
+              border: "1px solid #ccc",
+              padding: "6px 8px",
+              borderRadius: "4px",
+              pointerEvents: "auto",
+            }}
+          />
+        </div>
       );
+
+    // case "input":
+    //   return (
+    //     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    //       <label>{comp.content} </label>
+
+    //       <input
+    //         type={comp.inputType || "text"}
+    //         placeholder={comp.content || "Enter text"}
+    //         defaultValue={comp.value ?? ""}
+    //         onChange={(e) => {
+    //           const val = e.target.value ?? "";
+    //           try {
+    //             evaluateRulesAndDispatch(val);
+    //           } catch (err) {
+    //             console.warn("Error evaluating input rules", err);
+    //           }
+    //         }}
+    //         style={{
+    //           border: "1px solid #ccc",
+    //           padding: "6px 8px",
+    //           borderRadius: "4px",
+    //         }}
+    //       />
+    //     </div>
+    //   );
 
     /* ---------- NEW: radio group ---------- */
     case "radio buttons group": {
@@ -234,6 +264,7 @@ export function RenderComponent(comp: any) {
             gap: 10,
           }}
         >
+          <label>{comp.content} </label>
           {options.map((opt: string, i: number) => (
             <label
               key={i}
@@ -300,6 +331,7 @@ export function RenderComponent(comp: any) {
             gap: 10,
           }}
         >
+          <label>{comp.content} </label>
           {options.map((opt: string, i: number) => (
             <label
               key={i}
@@ -331,21 +363,26 @@ export function RenderComponent(comp: any) {
     case "select dropdown": {
       const options = Array.isArray(comp.options) ? comp.options : [];
       return (
-        <select
-          defaultValue={comp.options && comp.options[0] ? comp.options[0] : ""}
-          onChange={(e) => evaluateRulesAndDispatch(e.target.value)}
-          style={{
-            padding: ".5rem",
-            borderRadius: 6,
-            border: "1px solid #ccc",
-          }}
-        >
-          {options.map((opt: string, i: number) => (
-            <option key={i} value={opt}>
-              {opt}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label>{comp.content} </label>
+          <select
+            defaultValue={
+              comp.options && comp.options[0] ? comp.options[0] : ""
+            }
+            onChange={(e) => evaluateRulesAndDispatch(e.target.value)}
+            style={{
+              padding: ".5rem",
+              borderRadius: 6,
+              border: "1px solid #ccc",
+            }}
+          >
+            {options.map((opt: string, i: number) => (
+              <option key={i} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
       );
     }
 

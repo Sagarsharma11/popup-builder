@@ -1,9 +1,18 @@
 import { v4 as uuid } from "uuid";
 
 export const createNewComponent = ({ draggedType, x, y, baseStyles }: any) => {
+  const listLayoutStyles =
+    draggedType === "radio buttons group" || draggedType === "checkboxes group"
+      ? {
+          display: "flex",
+          flexDirection: "column",
+        }
+      : {};
   return {
     id: uuid(),
     type: draggedType,
+
+    inputType: inputTypeForSelectDropdown(),
 
     // unified text-based fields
     label: defaultLabel(draggedType),
@@ -18,9 +27,14 @@ export const createNewComponent = ({ draggedType, x, y, baseStyles }: any) => {
 
     position: { x, y },
 
-    styles: { ...baseStyles },
+    styles: { ...baseStyles,  ...listLayoutStyles },
   };
 };
+
+
+function inputTypeForSelectDropdown(): string {
+  return "text"; // default to single select
+}
 
 /* ---------------- DEFAULT LABEL/TEXT ---------------- */
 function defaultLabel(type: string): string {
